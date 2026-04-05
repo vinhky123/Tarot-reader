@@ -50,3 +50,17 @@
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
+
+@keyframes mystic-moon-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mystic-moon-spin {
+  animation: mystic-moon-rotate 58s linear infinite;
+  transform-origin: 50% 50%;
+}
