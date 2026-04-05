@@ -1,0 +1,52 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Cormorant hỗ trợ tiếng Việt đầy đủ; Cinzel thiếu nhiều glyph hoa có dấu */
+  --font-display: 'Cormorant', 'Cormorant Garamond', ui-serif, Georgia, serif;
+  --font-body: 'Cormorant Garamond', ui-serif, Georgia, serif;
+  --color-mystic-bg: #0a0a1a;
+  --color-mystic-deep: #1a0a2e;
+  --color-mystic-gold: #d4af37;
+  --color-mystic-gold-dim: #a68b2d;
+  --color-mystic-cream: #f5f0e6;
+  --color-mystic-violet: #7c3aed;
+  --color-mystic-cyan: #06b6d4;
+}
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply m-0 min-h-svh antialiased;
+    font-family: var(--font-body);
+    font-size: 1.0625rem;
+    line-height: 1.55;
+    color: var(--color-mystic-cream);
+    background: linear-gradient(
+      165deg,
+      var(--color-mystic-bg) 0%,
+      var(--color-mystic-deep) 45%,
+      #0f172a 100%
+    );
+  }
+  @media (min-width: 640px) {
+    body {
+      font-size: 1.125rem;
+    }
+  }
+  #root {
+    @apply relative min-h-svh w-full max-w-none;
+  }
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+.card-flip-inner {
+  transform-style: preserve-3d;
+}
+.card-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
