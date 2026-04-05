@@ -1,10 +1,13 @@
 import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect } from 'react'
 import { Footer } from './components/Layout/Footer'
 import { MysticBackground } from './components/Layout/MysticBackground'
 import { Navbar } from './components/Layout/Navbar'
 import { LoadingOracle } from './components/LoadingOracle'
+import { MysticSectionDivider } from './components/MysticSectionDivider'
 import { OracleGlyph } from './components/OracleGlyph'
 import { ReaderChat } from './components/ReaderChat'
+import { ReadingFlowStepper } from './components/ReadingFlowStepper'
 import { ReadingResult } from './components/ReadingResult'
 import { SpreadLayout } from './components/SpreadLayout'
 import { SpreadSelector } from './components/SpreadSelector'
@@ -31,10 +34,19 @@ export default function App() {
     r.cardFaceUp.every(Boolean)
   const cardsInteractive = r.step === 'placed'
 
+  useEffect(() => {
+    if (r.step !== 'done' || !r.readingText?.trim()) return
+    const t = window.setTimeout(() => {
+      document
+        .getElementById('mystic-reading-result')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 120)
+    return () => window.clearTimeout(t)
+  }, [r.step, r.readingText])
+
   return (
     <>
       <MysticBackground />
-      {/* Trang trí góc — không chiếm chỗ trong cột nội dung */}
       {!busy && r.step === 'spread' && (
         <div
           className="pointer-events-none fixed bottom-8 right-4 z-[5] hidden opacity-[0.22] xl:block 2xl:right-10"
@@ -57,7 +69,7 @@ export default function App() {
                 >
                   <div className="mx-auto w-full max-w-5xl">
                     <div className="text-center">
-                      <h2 className="font-display text-3xl font-semibold tracking-tight text-[#f5f0e6] sm:text-4xl">
+                      <h2 className="mystic-gradient-heading font-display text-3xl font-semibold tracking-tight sm:text-4xl">
                         Chọn kiểu trải bài
                       </h2>
                       <p className="mx-auto mt-2 max-w-3xl font-body text-base leading-relaxed text-[#f5f0e6]/70 sm:text-lg">
@@ -75,7 +87,7 @@ export default function App() {
                         onChange={(e) => r.setUserQuestion(e.target.value)}
                         rows={3}
                         placeholder="Ví dụ: Mình nên thay đổi gì trong công việc thời gian tới?"
-                        className="min-h-[5.5rem] w-full resize-y rounded-xl border border-[#f5f0e6]/20 bg-[#0a0a1a]/60 px-4 py-3.5 font-body text-base leading-relaxed text-[#f5f0e6] placeholder:text-[#f5f0e6]/38 focus:border-[#7c3aed]/55 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/25 sm:px-5 sm:py-4 sm:text-[1.05rem]"
+                        className="min-h-[5.5rem] w-full resize-y rounded-xl border border-[#f5f0e6]/20 bg-[#0a0a1a]/60 px-4 py-3.5 font-body text-base leading-relaxed text-[#f5f0e6] transition-transform placeholder:text-[#f5f0e6]/38 focus:border-[#7c3aed]/55 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/35 focus-visible:scale-[1.005] sm:px-5 sm:py-4 sm:text-[1.05rem]"
                       />
                     </label>
 
@@ -110,6 +122,8 @@ export default function App() {
 
             {showBoard && r.drawn && r.spread && (
               <section className="mx-auto w-full max-w-6xl space-y-6 sm:space-y-8 lg:max-w-7xl">
+                <ReadingFlowStepper step={r.step} allCardsFaceUp={allCardsFaceUp} />
+
                 <SpreadLayout
                   spread={r.spread}
                   drawn={r.drawn}
@@ -118,33 +132,31 @@ export default function App() {
                   onToggleCard={r.toggleCardFace}
                 />
 
+                <MysticSectionDivider />
+
                 <div className="flex flex-wrap justify-center gap-4 sm:gap-5">
                   {r.step === 'placed' && !allCardsFaceUp && (
-                    <button
-                      type="button"
-                      className={btnPrimary}
-                      onClick={r.flipAllCards}
-                    >
+                    <button type="button" className={btnPrimary} onClick={r.flipAllCards}>
                       Lật hết
                     </button>
                   )}
                   {r.step === 'placed' && allCardsFaceUp && (
                     <button
                       type="button"
-                      className={btnPrimary}
+                      className={`${btnPrimary} mystic-oracle-pulse`}
                       onClick={() => void r.runReading()}
                     >
                       Nhận lời giải từ Oracle
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className={btnGhost}
-                    onClick={r.resetAll}
-                  >
+                  <button type="button" className={btnGhost} onClick={r.resetAll}>
                     Trải bài mới
                   </button>
                 </div>
+
+                {(r.step === 'reading' || r.error || r.readingText) && (
+                  <MysticSectionDivider />
+                )}
 
                 {r.step === 'reading' && (
                   <div className="flex justify-center py-6">
@@ -154,7 +166,7 @@ export default function App() {
 
                 {r.error && (
                   <div
-                    className="whitespace-pre-line rounded-xl border border-red-400/35 bg-red-950/40 px-4 py-4 text-left font-body text-base leading-relaxed text-red-200/90 sm:px-6"
+                    className="whitespace-pre-line rounded-xl border border-red-400/40 bg-red-950/45 px-4 py-4 text-left font-body text-base leading-relaxed text-red-200/90 shadow-[0_0_24px_rgba(248,113,113,0.08)] sm:px-6"
                     role="alert"
                   >
                     {r.error}

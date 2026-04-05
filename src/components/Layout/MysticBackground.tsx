@@ -15,8 +15,17 @@ const MYSTIC_PARTICLE_OPTIONS = {
   particles: {
     number: { value: 78, density: { enable: false } },
     color: { value: ['#d4af37', '#7c3aed', '#06b6d4', '#f5f0e6'] },
-    opacity: { value: { min: 0.12, max: 0.5 } },
-    size: { value: { min: 0.5, max: 2 } },
+    opacity: {
+      value: { min: 0.1, max: 0.55 },
+      animation: {
+        enable: true,
+        speed: { min: 0.6, max: 2.4 },
+        sync: false,
+        destroy: 'none' as const,
+        startValue: 'random' as const,
+      },
+    },
+    size: { value: { min: 0.5, max: 2.8 } },
     move: {
       enable: true,
       speed: { min: 0.14, max: 0.36 },
@@ -106,6 +115,14 @@ function MysticBackgroundInner() {
           backgroundImage: `radial-gradient(circle at 20% 30%, #7c3aed 0%, transparent 45%),
             radial-gradient(circle at 80% 70%, #06b6d4 0%, transparent 40%)`,
         }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 z-[2]"
+        style={{
+          boxShadow:
+            'inset 0 0 100px rgba(0,0,0,0.55), inset 0 0 180px rgba(0,0,0,0.35), inset 0 -40px 80px rgba(10,10,26,0.5)',
+        }}
+        aria-hidden
       />
       <MysticMoon />
     </div>

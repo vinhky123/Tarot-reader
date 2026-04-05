@@ -10,12 +10,14 @@ export function Navbar() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <span
-            className="font-display text-xl font-semibold tracking-[0.2em] text-[#d4af37] sm:text-2xl"
+          <motion.span
+            className="inline-block font-display text-xl font-semibold tracking-[0.2em] text-[#d4af37] sm:text-2xl"
             aria-hidden
+            animate={{ rotate: [0, 12, -8, 6, 0], scale: [1, 1.06, 1] }}
+            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
           >
             ✦
-          </span>
+          </motion.span>
           <div className="text-left">
             <h1 className="font-display text-2xl font-semibold tracking-wide text-[#f5f0e6] sm:text-3xl">
               Mystic Tarot

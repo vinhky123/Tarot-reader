@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
 import { localCardSrc, remoteCardSrc } from '../data/cardImages'
 import type { DrawnCard } from '../types'
@@ -49,7 +49,6 @@ function CardBack({ reversed }: { reversed: boolean }) {
           MYSTIC
         </span>
       </div>
-      {/* Vệt ánh sáng — vị trí khác nhau cho xuôi / ngược */}
       <div
         className={`pointer-events-none absolute h-[42%] w-[3px] rounded-full opacity-50 blur-[1px] ${
           reversed
@@ -78,13 +77,20 @@ export function CardReveal({
   className = '',
 }: CardRevealProps) {
   const [src, setSrc] = useState(() => localCardSrc(drawn.card.id))
+  const [flash, setFlash] = useState(false)
   const remote = remoteCardSrc(drawn.card.id)
 
   const canToggle = Boolean(interactive && onToggle)
+  const tooltipFace = `${drawn.card.name} — ${drawn.reversed ? 'Ngược' : 'Xuôi'}`
 
-  const inner = (
+  function triggerFlipFlash() {
+    setFlash(true)
+    window.setTimeout(() => setFlash(false), 280)
+  }
+
+  const flipLayer = (
     <motion.div
-      className="relative mx-auto aspect-[2/3.45] w-[112px] sm:w-[128px] md:w-[148px]"
+      className="relative mx-auto aspect-[2/3.45] w-[112px] sm:w-[128px] md:w-[148px] lg:w-[172px] xl:w-[196px]"
       style={{ transformStyle: 'preserve-3d' }}
       initial={false}
       animate={{
@@ -95,6 +101,9 @@ export function CardReveal({
         type: 'spring',
         stiffness: 76,
         damping: 15,
+      }}
+      onAnimationComplete={() => {
+        if (faceUp) triggerFlipFlash()
       }}
     >
       <div
@@ -124,20 +133,50 @@ export function CardReveal({
     </motion.div>
   )
 
+  const hoverShell = (
+    <motion.div
+      className="relative inline-block rounded-xl"
+      whileHover={
+        canToggle && !faceUp
+          ? {
+              scale: 1.04,
+              boxShadow: '0 0 28px rgba(212, 175, 55, 0.35), 0 0 40px rgba(124, 58, 237, 0.15)',
+            }
+          : undefined
+      }
+      transition={{ type: 'spring', stiffness: 420, damping: 22 }}
+    >
+      <AnimatePresence>
+        {flash && (
+          <motion.div
+            key="flash"
+            className="pointer-events-none absolute inset-0 z-20 rounded-xl bg-gradient-to-br from-[#fff8e8]/50 via-[#d4af37]/25 to-[#7c3aed]/20"
+            initial={{ opacity: 0.85 }}
+            animate={{ opacity: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.28, ease: 'easeOut' }}
+          />
+        )}
+      </AnimatePresence>
+      {flipLayer}
+    </motion.div>
+  )
+
   return (
     <div className={`perspective-1000 ${className}`}>
       {canToggle ? (
         <button
           type="button"
           onClick={onToggle}
+          title={faceUp ? tooltipFace : undefined}
           className="block cursor-pointer rounded-xl border-0 bg-transparent p-0 text-left outline-none ring-[#7c3aed]/40 focus-visible:ring-2"
           aria-pressed={faceUp}
           aria-label={faceUp ? 'Úp lá bài' : 'Lật lá bài'}
         >
-          {inner}
+          {hoverShell}
         </button>
       ) : (
-        inner
+        <div title={faceUp ? tooltipFace : undefined}>{hoverShell}</div>
       )}
     </div>
   )

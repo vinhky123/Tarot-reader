@@ -38,6 +38,25 @@
   #root {
     @apply relative min-h-svh w-full max-w-none;
   }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(212, 175, 55, 0.35) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgba(212, 175, 55, 0.28);
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(212, 175, 55, 0.45);
+  }
 }
 
 .perspective-1000 {
@@ -63,4 +82,58 @@
 .mystic-moon-spin {
   animation: mystic-moon-rotate 58s linear infinite;
   transform-origin: 50% 50%;
+}
+
+.mystic-gradient-heading {
+  background: linear-gradient(
+    105deg,
+    #f5f0e6 0%,
+    #d4af37 35%,
+    #c4a028 55%,
+    #7c3aed 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes mystic-oracle-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 28px rgba(212, 175, 55, 0.12),
+      0 0 0 0 rgba(212, 175, 55, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 36px rgba(212, 175, 55, 0.22),
+      0 0 24px rgba(124, 58, 237, 0.12);
+  }
+}
+
+.mystic-oracle-pulse {
+  animation: mystic-oracle-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes mystic-typing-dot {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+.mystic-typing-dot {
+  animation: mystic-typing-dot 1s ease-in-out infinite;
+}
+.mystic-typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.mystic-typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
 }
