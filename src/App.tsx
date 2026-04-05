@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Footer } from './components/Layout/Footer'
+import { MysticCover } from './components/Layout/MysticCover'
 import { MysticBackground } from './components/Layout/MysticBackground'
 import { Navbar } from './components/Layout/Navbar'
 import { LoadingOracle } from './components/LoadingOracle'
@@ -20,7 +21,11 @@ const btnPrimary =
 const btnGhost =
   'rounded-xl border border-[#f5f0e6]/25 px-6 py-3 font-body text-base text-[#f5f0e6]/85 transition hover:border-[#7c3aed]/45 hover:bg-[#f5f0e6]/5 hover:text-[#f5f0e6]'
 
+const coverEase = [0.22, 1, 0.36, 1] as const
+
 export default function App() {
+  const [coverOpen, setCoverOpen] = useState(true)
+  const dismissCover = useCallback(() => setCoverOpen(false), [])
   const r = useReading()
   const busy =
     r.step === 'shuffle' || r.step === 'reading' || r.step === 'placed'
@@ -44,10 +49,19 @@ export default function App() {
     return () => window.clearTimeout(t)
   }, [r.step, r.readingText])
 
+  useEffect(() => {
+    if (!coverOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [coverOpen])
+
   return (
     <>
       <MysticBackground />
-      {!busy && r.step === 'spread' && (
+      {!busy && r.step === 'spread' && !coverOpen && (
         <div
           className="pointer-events-none fixed bottom-8 right-4 z-[5] hidden opacity-[0.22] xl:block 2xl:right-10"
           aria-hidden
@@ -55,7 +69,17 @@ export default function App() {
           <OracleGlyph />
         </div>
       )}
-      <div className="relative z-10 flex min-h-svh flex-col">
+      <motion.div
+        className="relative z-10 flex min-h-svh flex-col"
+        initial={false}
+        animate={
+          coverOpen
+            ? { opacity: 0.38, scale: 0.97, filter: 'blur(12px)' }
+            : { opacity: 1, scale: 1, filter: 'blur(0px)' }
+        }
+        transition={{ duration: 0.9, ease: coverEase }}
+        style={{ pointerEvents: coverOpen ? 'none' : 'auto' }}
+      >
         <Navbar />
         <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-6 sm:px-8 sm:py-8 lg:px-12 lg:py-10">
           <div className="w-full">
@@ -186,7 +210,13 @@ export default function App() {
           </div>
         </main>
         <Footer />
-      </div>
+      </motion.div>
+
+      <AnimatePresence>
+        {coverOpen && (
+          <MysticCover key="mystic-cover" onEnter={dismissCover} />
+        )}
+      </AnimatePresence>
     </>
   )
 }

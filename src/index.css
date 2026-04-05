@@ -137,3 +137,15 @@
 .mystic-typing-dot:nth-child(3) {
   animation-delay: 0.3s;
 }
+
+@keyframes mystic-cover-twinkle {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.4);
+  }
+}
