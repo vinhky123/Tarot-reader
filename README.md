@@ -63,6 +63,24 @@ npm run build
 npm run preview   # xem thử thư mục dist/
 ```
 
+Chạy bằng Docker:
+
+```bash
+# Linux/macOS
+cp .env.example .env
+# chỉnh VITE_GEMINI_API_KEY trong .env
+docker compose up --build
+```
+
+```powershell
+# Windows PowerShell
+Copy-Item .env.example .env
+# chỉnh VITE_GEMINI_API_KEY trong .env
+docker compose up --build
+```
+
+App sẽ chạy tại `http://localhost:8080`.
+
 ---
 
 ## Biến môi trường

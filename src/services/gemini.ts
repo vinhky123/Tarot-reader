@@ -14,7 +14,20 @@ function resolvedModel(): string {
   return 'gemini-2.0-flash'
 }
 
-const SYSTEM_INSTRUCTION = `Bạn là tarot reader dày dạn, giọng trầm ấm, rõ ý và đi thẳng vào thông điệp.
+const SYSTEM_INSTRUCTION = `Bạn là một tarot reader kỳ cựu — không phải chatbot giải thích bài, mà là người ngồi đối diện, nhìn thẳng vào người xem và nói điều cần nói.
+
+Giọng: trầm, thực, không hoa mỹ. Như người bạn đã đi qua nhiều thứ, không phán xét nhưng không vòng vo.
+
+Ví dụ câu mở đúng tone:
+- "Bài này nói về một điểm mắc kẹt mà bạn đã biết từ lâu, chỉ chưa chịu nhìn thẳng vào."
+- "Có gì đó đang được xây dựng — chậm, nhưng có nền."
+- "Năng lượng tháng này kéo bạn về hai hướng ngược nhau."
+
+Ví dụ câu mở SAI tone (tránh tuyệt đối):
+- "Chào bạn! Hãy cùng khám phá những thông điệp từ các lá bài nhé."
+- "Những lá bài này mang đến một thông điệp rất thú vị cho bạn."
+- "The Tower xuất hiện với hình ảnh một tòa tháp đang sụp đổ..."
+
 Luôn trả lời bằng tiếng Việt.
 Không đưa ra lời tiên tri tuyệt đối về sức khỏe, cái chết hay tài chính cụ thể; diễn giải theo hướng biểu tượng, năng lượng và lựa chọn.
 
@@ -25,15 +38,15 @@ Không đưa ra lời tiên tri tuyệt đối về sức khỏe, cái chết ha
 - Không copy lại danh sách từ khóa hay "ý nghĩa kho" theo kiểu từ điển.
 
 Định dạng cho bài đọc đầy đủ (lần đầu):
-- Độ dài mục tiêu: khoảng 350-700 từ.
-- Mở đầu 1-2 câu: nói thẳng thông điệp trung tâm.
-- Đi qua từng vị trí theo thứ tự: mỗi vị trí 1-2 câu, gắn trực tiếp vào bối cảnh/câu hỏi người xem.
+- Độ dài mục tiêu: khoảng 350–600 từ.
+- Mở đầu 1–2 câu: nói thẳng thông điệp trung tâm của toàn bài. Không chào hỏi.
+- Đi qua từng vị trí theo thứ tự: mỗi vị trí 2–3 câu, trả lời trực tiếp "câu hỏi vị trí" được ghi trong prompt, gắn vào bối cảnh người xem.
 - Kết luận không quá 3 câu: 1 thông điệp then chốt + 1 gợi ý hành động cụ thể, nhẹ nhàng.
 - Có thể dùng tiêu đề phụ markdown ngắn (##), nhưng giữ ngắn gọn.
 
 Định dạng cho câu hỏi follow-up:
-- Độ dài mục tiêu: khoảng 100-250 từ.
-- Trả lời trực tiếp câu hỏi, thường 2-5 câu.
+- Độ dài mục tiêu: khoảng 100–250 từ.
+- Trả lời trực tiếp câu hỏi, thường 2–5 câu.
 - Chỉ nhắc lại phần cần thiết từ các lá/vị trí liên quan; không lặp toàn bộ bài đọc trước đó.
 - Nếu câu hỏi mơ hồ, chủ động nêu 1 cách hiểu hợp lý nhất và trả lời theo cách đó.`
 
@@ -130,11 +143,13 @@ export function buildUserPrompt(
 ): string {
   const blocks = drawn.map((d) => {
     const pos = spread.positions[d.positionIndex]
+    const meaning = d.reversed ? d.card.reversed : d.card.upright
     return [
       `---`,
-      `Vị trí: ${pos?.label ?? '?'} — ${pos?.hint ?? ''}`,
+      `Vị trí: **${pos?.label ?? '?'}**`,
+      `Câu hỏi vị trí cần trả lời: "${pos?.hint ?? ''}"`,
       `Lá: ${d.card.name} (${d.reversed ? 'ngược' : 'xuôi'})`,
-      `Gợi ý ngữ nghĩa (không liệt kê lại nguyên văn trong output): ${d.card.keywords.join(', ')}`,
+      `Ngữ nghĩa áp dụng cho lá này: ${meaning}`,
     ].join('\n')
   })
   return [
@@ -182,14 +197,16 @@ async function generateOnce(
   ai: GoogleGenAI,
   model: string,
   userText: string,
+  cardCount: number,
 ): Promise<string> {
+  const dynamicMaxTokens = Math.min(500 + cardCount * 250, 2000)
   const response = await ai.models.generateContent({
     model,
     contents: userText,
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
-      temperature: 0.78,
-      maxOutputTokens: 3000,
+      temperature: 1.0,
+      maxOutputTokens: dynamicMaxTokens,
     },
   })
   const text = response.text
@@ -237,7 +254,7 @@ export async function requestTarotReading(
   const model = resolvedModel()
   const userText = buildUserPrompt(spread, drawn, userQuestion)
   return generateWithRateLimitRetry(model, () =>
-    generateOnce(ai, model, userText),
+    generateOnce(ai, model, userText, drawn.length),
   )
 }
 

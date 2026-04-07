@@ -101,6 +101,96 @@ const RANK_PHRASES: Record<
   },
 }
 
+const COURT_OVERRIDES: Record<string, { up: string; rev: string; kw: string[] }> = {
+  // ─── Wands ────────────────────────────────────────
+  'wands-11': {
+    up: 'Người trẻ đầy nhiệt huyết, háo hức khám phá; mang tin vui hoặc cơ hội sáng tạo mới.',
+    rev: 'Hời hợt, thiếu kiên nhẫn theo đuổi; khởi đầu nhiều nhưng bỏ dở.',
+    kw: ['nhiệt huyết', 'khám phá', 'tin tức sáng tạo'],
+  },
+  'wands-12': {
+    up: 'Dấn thân mãnh liệt, dám làm dám chịu; năng lượng bốc lửa hướng tới mục tiêu.',
+    rev: 'Bốc đồng, gây xung đột vì nóng vội; thiếu kế hoạch dài hạn.',
+    kw: ['dấn thân', 'bốc lửa', 'phiêu lưu'],
+  },
+  'wands-13': {
+    up: 'Tự tin, truyền cảm hứng, thu hút người khác bằng tầm nhìn và sự ấm áp.',
+    rev: 'Kiểm soát, ghen tuông, hoặc đặt kỳ vọng quá cao lên người xung quanh.',
+    kw: ['tự tin', 'truyền cảm hứng', 'tầm nhìn'],
+  },
+  'wands-14': {
+    up: 'Lãnh đạo bằng tầm nhìn lớn, quyết đoán và truyền lửa; biến ý tưởng thành hiện thực.',
+    rev: 'Áp đặt, nóng tính, hoặc kiệt sức vì ôm quá nhiều trách nhiệm.',
+    kw: ['lãnh đạo', 'quyết đoán', 'tầm nhìn lớn'],
+  },
+
+  // ─── Cups ─────────────────────────────────────────
+  'cups-11': {
+    up: 'Tâm hồn mơ mộng, trực giác nhạy bén; một lời mời lắng nghe cảm xúc và sáng tạo.',
+    rev: 'Nhạy cảm quá mức, dễ bị tổn thương, hoặc ảo tưởng tình cảm.',
+    kw: ['mơ mộng', 'nhạy cảm', 'trực giác'],
+  },
+  'cups-12': {
+    up: 'Lãng mạn, theo đuổi cảm hứng; đem yêu thương vào hành động, cử chỉ chân thành.',
+    rev: 'Đa tình, thất thường, hoặc đắm chìm trong ảo tưởng lãng mạn.',
+    kw: ['lãng mạn', 'chân thành', 'theo đuổi'],
+  },
+  'cups-13': {
+    up: 'Đồng cảm sâu sắc, chữa lành bằng sự hiện diện; trực giác dẫn lối quan hệ.',
+    rev: 'Hy sinh bản thân quá nhiều, phụ thuộc cảm xúc, hoặc thao túng bằng lòng thương.',
+    kw: ['đồng cảm', 'chữa lành', 'trực giác sâu'],
+  },
+  'cups-14': {
+    up: 'Trưởng thành cảm xúc, bao dung, khôn ngoan trong quan hệ; cố vấn tâm linh.',
+    rev: 'Thao túng tình cảm, lạnh lùng bề ngoài, hoặc dùng cảm xúc để kiểm soát.',
+    kw: ['bao dung', 'khôn ngoan', 'trưởng thành cảm xúc'],
+  },
+
+  // ─── Swords ───────────────────────────────────────
+  'swords-11': {
+    up: 'Tò mò trí tuệ, quan sát sắc bén; sẵn sàng đào sâu sự thật dù khó chịu.',
+    rev: 'Soi mói, dùng lời nói gây tổn thương, hoặc nghe ngóng thiếu mục đích.',
+    kw: ['sắc bén', 'tò mò', 'sự thật'],
+  },
+  'swords-12': {
+    up: 'Hành động nhanh, tư duy sắc sảo; lao vào vấn đề và xử lý trực diện.',
+    rev: 'Hấp tấp, giao tiếp thiếu cân nhắc, hoặc gây xung đột không cần thiết.',
+    kw: ['nhanh nhạy', 'trực diện', 'sắc sảo'],
+  },
+  'swords-13': {
+    up: 'Minh mẫn, độc lập tư duy; nhìn thấu bản chất vấn đề và nói thẳng.',
+    rev: 'Lạnh lùng, cắt đứt quan hệ quá dễ, hoặc dùng sự thật như vũ khí.',
+    kw: ['minh mẫn', 'độc lập', 'sắc bén'],
+  },
+  'swords-14': {
+    up: 'Phán đoán công minh, trí tuệ và kỷ luật; đưa ra quyết định khó nhưng cần thiết.',
+    rev: 'Nghiêm khắc quá mức, thiếu lòng trắc ẩn, hoặc lạm dụng quyền lực trí tuệ.',
+    kw: ['công minh', 'kỷ luật', 'phán đoán'],
+  },
+
+  // ─── Pentacles ────────────────────────────────────
+  'pentacles-11': {
+    up: 'Chăm chỉ học hỏi, xây nền từng bước; cơ hội tài chính hoặc kỹ năng mới.',
+    rev: 'Thiếu tập trung, lười biếng, hoặc hoang phí tài nguyên; bỏ lỡ cơ hội thực tế.',
+    kw: ['học hỏi', 'nền tảng', 'cơ hội thực tế'],
+  },
+  'pentacles-12': {
+    up: 'Kiên trì, đáng tin cậy, làm việc có phương pháp; tiến bộ chậm nhưng chắc.',
+    rev: 'Trì trệ, thiếu động lực, hoặc kiên trì sai hướng; cần đánh giá lại lộ trình.',
+    kw: ['kiên trì', 'đáng tin', 'phương pháp'],
+  },
+  'pentacles-13': {
+    up: 'Thực tế và hào phóng, tạo không gian an toàn; giỏi nuôi dưỡng sự ổn định.',
+    rev: 'Bất an tài chính, bám víu vật chất, hoặc quá lo lắng về tiền bạc.',
+    kw: ['hào phóng', 'ổn định', 'thực tế'],
+  },
+  'pentacles-14': {
+    up: 'Thành đạt, kỷ luật tài chính, biết xây dựng và bảo vệ di sản lâu dài.',
+    rev: 'Tham lam, coi trọng vật chất hơn người, hoặc keo kiệt đến mức tự cô lập.',
+    kw: ['thành đạt', 'kỷ luật', 'di sản'],
+  },
+}
+
 function expand(s: string, suit: Suit): string {
   return s.replace('{domain}', DOMAIN[suit])
 }
@@ -112,16 +202,30 @@ function buildMinors(): TarotCard[] {
   for (const suit of suits) {
     const suitCap = suit.charAt(0).toUpperCase() + suit.slice(1)
     for (let rank = 1; rank <= 14; rank++) {
-      const phrase = RANK_PHRASES[rank]
-      out.push({
-        id,
-        name: `${RANK_LABELS[rank]} of ${suitCap}`,
-        arcana: 'minor',
-        suit,
-        upright: expand(phrase.up, suit),
-        reversed: expand(phrase.rev, suit),
-        keywords: [...phrase.kw, DOMAIN[suit].split(',')[0].trim()],
-      })
+      const courtKey = `${suit}-${rank}`
+      const court = COURT_OVERRIDES[courtKey]
+      if (court) {
+        out.push({
+          id,
+          name: `${RANK_LABELS[rank]} of ${suitCap}`,
+          arcana: 'minor',
+          suit,
+          upright: court.up,
+          reversed: court.rev,
+          keywords: court.kw,
+        })
+      } else {
+        const phrase = RANK_PHRASES[rank]
+        out.push({
+          id,
+          name: `${RANK_LABELS[rank]} of ${suitCap}`,
+          arcana: 'minor',
+          suit,
+          upright: expand(phrase.up, suit),
+          reversed: expand(phrase.rev, suit),
+          keywords: [...phrase.kw, DOMAIN[suit].split(',')[0].trim()],
+        })
+      }
       id += 1
     }
   }
