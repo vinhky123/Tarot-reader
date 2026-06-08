@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
-import type { DrawnCard, ReaderTurn } from '../types'
+import type { DrawnCard, ReaderTurn, Suit } from '../types'
 import type { SpreadDefinition } from '../data/spreads'
 
 /**
@@ -16,7 +16,7 @@ function resolvedModel(): string {
 
 const SYSTEM_INSTRUCTION = `Bạn là một tarot reader kỳ cựu — không phải chatbot giải thích bài, mà là người ngồi đối diện, nhìn thẳng vào người xem và nói điều cần nói.
 
-Giọng: trầm, thực, không hoa mỹ. Như người bạn đã đi qua nhiều thứ, không phán xét nhưng không vòng vo.
+Giọng: trầm, thực, không hoa mỹ. Như người bạn đã đi qua nhiều thứ, không phán xét đạo đức, nhưng thẳng thắn và không vòng vo.
 
 Ví dụ câu mở đúng tone:
 - "Bài này nói về một điểm mắc kẹt mà bạn đã biết từ lâu, chỉ chưa chịu nhìn thẳng vào."
@@ -34,13 +34,16 @@ Không đưa ra lời tiên tri tuyệt đối về sức khỏe, cái chết ha
 Ưu tiên trọng tâm:
 - Tập trung vào thông điệp cốt lõi và điều người xem cần hiểu ngay lúc này.
 - Không lan man, không rào dài, không lặp lại cùng một ý theo nhiều cách.
-- Không mô tả hình ảnh trên lá bài; dùng lá như bằng chứng để rút insight.
+- Có thể nhắc đến chi tiết biểu tượng trên lá nếu nó bổ sung insight, nhưng không mô tả hình ảnh một cách hời hợt. Dùng lá bài như bằng chứng để rút insight.
 - Không copy lại danh sách từ khóa hay "ý nghĩa kho" theo kiểu từ điển.
+- Chỉ dùng thông tin từ dữ liệu bài đã cho; không thêm lá bài hoặc vị trí không có trong trải bài.
 
 Định dạng cho bài đọc đầy đủ (lần đầu):
-- Độ dài mục tiêu: khoảng 350–600 từ.
+- Độ dài mục tiêu: khoảng 350–600 từ (có thể lên đến 800 từ cho trải bài lớn như Celtic Cross).
 - Mở đầu 1–2 câu: nói thẳng thông điệp trung tâm của toàn bài. Không chào hỏi.
 - Đi qua từng vị trí theo thứ tự: mỗi vị trí 2–3 câu, trả lời trực tiếp "câu hỏi vị trí" được ghi trong prompt, gắn vào bối cảnh người xem.
+- Xác định lá bài nào là "chủ âm" của toàn bộ trải bài — lá mang năng lượng mạnh nhất hoặc lá lặp lại chủ đề xuyên suốt các vị trí.
+- Sau khi đi qua các vị trí, dành 1–2 câu để tổng hợp: các lá có mối liên kết gì với nhau? Chúng bổ trợ hay mâu thuẫn? Lá nào giữ vai trò chủ đạo?
 - Kết luận không quá 3 câu: 1 thông điệp then chốt + 1 gợi ý hành động cụ thể, nhẹ nhàng.
 - Có thể dùng tiêu đề phụ markdown ngắn (##), nhưng giữ ngắn gọn.
 
@@ -58,6 +61,21 @@ function client() {
     )
   }
   return new GoogleGenAI({ apiKey: String(key).trim() })
+}
+
+const SUIT_ELEMENT: Record<Suit, string> = {
+  wands: 'Lửa (Fire)',
+  cups: 'Nước (Water)',
+  swords: 'Khí (Air)',
+  pentacles: 'Đất (Earth)',
+}
+
+function cardNumber(card: { id: number; arcana: 'major' | 'minor' }): number {
+  return card.arcana === 'major' ? card.id : ((card.id - 22) % 14) + 1
+}
+
+function isCourt(rank: number): boolean {
+  return rank >= 11
 }
 
 function sleep(ms: number): Promise<void> {
@@ -141,15 +159,21 @@ export function buildUserPrompt(
   drawn: DrawnCard[],
   userQuestion: string,
 ): string {
+  const summary = buildSpreadSummary(drawn)
   const blocks = drawn.map((d) => {
     const pos = spread.positions[d.positionIndex]
-    const meaning = d.reversed ? d.card.reversed : d.card.upright
+    const num = cardNumber(d.card)
+    const r = cardNumber(d.card)
+    const courtLabel = d.card.arcana !== 'major' && isCourt(r) ? ' [Court]' : ''
+    const suitName = d.card.suit ? d.card.suit.charAt(0).toUpperCase() + d.card.suit.slice(1) : ''
+    const element = d.card.suit ? ` · ${SUIT_ELEMENT[d.card.suit]}` : ''
+    const arcanaLabel = d.card.arcana === 'major' ? 'Major Arcana' : 'Minor Arcana'
     return [
-      `---`,
-      `Vị trí: **${pos?.label ?? '?'}**`,
-      `Câu hỏi vị trí cần trả lời: "${pos?.hint ?? ''}"`,
-      `Lá: ${d.card.name} (${d.reversed ? 'ngược' : 'xuôi'})`,
-      `Ngữ nghĩa áp dụng cho lá này: ${meaning}`,
+      `--- Vị trí ${d.positionIndex + 1}: ${pos?.label ?? '?'} ---`,
+      `Câu hỏi: "${pos?.hint ?? ''}"`,
+      `Lá: ${d.card.name} (${d.reversed ? 'ngược' : 'xuôi'})${courtLabel}`,
+      `Thông số: Số ${num} · ${arcanaLabel}${d.card.suit ? ` · ${suitName}${element}` : ''}`,
+      `Từ khóa: ${d.card.keywords.join(', ')}`,
     ].join('\n')
   })
   return [
@@ -158,12 +182,43 @@ export function buildUserPrompt(
     '',
     userQuestion.trim()
       ? `Câu hỏi / bối cảnh của người xem: ${userQuestion.trim()}`
-      : 'Người xem không nhập câu hỏi cụ thể — hãy đọc tổng quát theo các lá và vị trí.',
+      : 'Người xem không nhập câu hỏi cụ thể — hãy đọc tổng quát theo các lá và vị trí. Nếu câu hỏi của người xem quá chung chung hoặc mơ hồ, hãy chủ động chọn cách hiểu hợp lý nhất và trả lời theo hướng đó.',
+    '',
+    ...summary,
     '',
     ...blocks,
     '',
     'Yêu cầu đầu ra: đi thẳng vào thông điệp cốt lõi, ưu tiên tính thực dụng, tránh mở đầu xã giao kiểu "Chào bạn", tránh diễn giải lan man.',
   ].join('\n')
+}
+
+function buildSpreadSummary(drawn: DrawnCard[]): string[] {
+  if (drawn.length < 2) return []
+
+  const majorCount = drawn.filter((d) => d.card.arcana === 'major').length
+  const minorCount = drawn.length - majorCount
+  const upright = drawn.filter((d) => !d.reversed).length
+  const reversed = drawn.length - upright
+
+  const suitCounts: Partial<Record<Suit, number>> = {}
+  let courtCount = 0
+  for (const d of drawn) {
+    if (d.card.suit) suitCounts[d.card.suit] = (suitCounts[d.card.suit] ?? 0) + 1
+    if (d.card.arcana === 'minor' && isCourt(cardNumber(d.card))) courtCount++
+  }
+
+  const lines: string[] = ['Tổng quan bộ bài:']
+  lines.push(`• ${majorCount} Major · ${minorCount} Minor`)
+
+  const suitParts: string[] = []
+  for (const [suit, count] of Object.entries(suitCounts)) {
+    if (count) suitParts.push(`${count} ${suit.charAt(0).toUpperCase() + suit.slice(1)} (${SUIT_ELEMENT[suit as Suit]})`)
+  }
+  if (suitParts.length > 0) lines.push(`• ${suitParts.join(' + ')}`)
+  lines.push(`• ${upright} xuôi · ${reversed} ngược`)
+  if (courtCount > 0) lines.push(`• ${courtCount} Court (nhân vật / nguyên mẫu)`)
+
+  return lines
 }
 
 /** Hai lượt đầu cho API: prompt tarot + lời giải model. */
@@ -193,19 +248,28 @@ function turnsToContents(turns: ReaderTurn[]) {
   }))
 }
 
+const SPREAD_TEMPERATURE: Record<string, number> = {
+  one: 0.95,
+  three: 0.90,
+  five: 0.85,
+  celtic: 0.80,
+}
+
 async function generateOnce(
   ai: GoogleGenAI,
   model: string,
   userText: string,
   cardCount: number,
+  spreadId: string,
 ): Promise<string> {
-  const dynamicMaxTokens = Math.min(500 + cardCount * 250, 2000)
+  const temperature = SPREAD_TEMPERATURE[spreadId] ?? 0.9
+  const dynamicMaxTokens = Math.min(600 + cardCount * 300, 3000)
   const response = await ai.models.generateContent({
     model,
     contents: userText,
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
-      temperature: 1.0,
+      temperature,
       maxOutputTokens: dynamicMaxTokens,
     },
   })
@@ -254,7 +318,7 @@ export async function requestTarotReading(
   const model = resolvedModel()
   const userText = buildUserPrompt(spread, drawn, userQuestion)
   return generateWithRateLimitRetry(model, () =>
-    generateOnce(ai, model, userText, drawn.length),
+    generateOnce(ai, model, userText, drawn.length, spread.id),
   )
 }
 
