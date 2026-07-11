@@ -125,7 +125,7 @@ export function CardReveal({
       >
         <img
           src={src}
-          alt=""
+          alt={`${drawn.card.name}${drawn.reversed ? ' (ngược)' : ''}`}
           className={`h-full w-full object-cover ${drawn.reversed ? 'rotate-180' : ''}`}
           onError={() => setSrc(remote)}
         />

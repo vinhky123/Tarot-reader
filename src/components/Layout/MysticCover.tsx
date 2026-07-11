@@ -1,4 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import { useRef } from 'react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 
 const easeOut = [0.22, 1, 0.36, 1] as const
 
@@ -10,9 +12,12 @@ export function MysticCover({ onEnter }: MysticCoverProps) {
   const reduceMotion = useReducedMotion()
   const duration = reduceMotion ? 0.35 : 0.95
   const spinDuration = reduceMotion ? 0 : 28
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(dialogRef, true, onEnter)
 
   return (
     <motion.div
+      ref={dialogRef}
       className="fixed inset-0 z-[50] flex cursor-default flex-col items-center justify-center overflow-hidden px-6"
       role="dialog"
       aria-modal="true"
@@ -88,7 +93,7 @@ export function MysticCover({ onEnter }: MysticCoverProps) {
               Mystic Tarot
             </span>
           </h1>
-          <p className="mt-3 font-body text-base text-[#f5f0e6]/55 sm:text-lg">
+          <p className="mt-3 font-body text-base text-[#f5f0e6]/75 sm:text-lg">
             Rider-Waite · Gemini
           </p>
 
@@ -124,11 +129,11 @@ export function MysticCover({ onEnter }: MysticCoverProps) {
 
           <motion.span
             id="mystic-cover-hint"
-            className="mt-8 font-display text-sm tracking-[0.2em] text-[#f5f0e6]/45 sm:text-base"
-            animate={reduceMotion ? {} : { opacity: [0.4, 0.85, 0.4] }}
+            className="mt-8 font-display text-sm tracking-[0.2em] text-[#f5f0e6]/70 sm:text-base"
+            animate={reduceMotion ? {} : { opacity: [0.55, 0.95, 0.55] }}
             transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
           >
-            Chỉ có thể vào qua nút bên dưới
+            Nhấn nút bên dưới hoặc nhấn Enter để vào
           </motion.span>
         </div>
 

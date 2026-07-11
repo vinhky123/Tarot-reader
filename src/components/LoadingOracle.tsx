@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 
 const QUOTES = [
@@ -8,15 +8,22 @@ const QUOTES = [
   'Một chút kiên nhẫn — ánh sáng đang được dệt…',
 ]
 
-export function LoadingOracle() {
+interface LoadingOracleProps {
+  /** When true, text has already started arriving — show a calmer state. */
+  streaming?: boolean
+}
+
+export function LoadingOracle({ streaming = false }: LoadingOracleProps) {
+  const reduceMotion = useReducedMotion()
   const [qi, setQi] = useState(0)
 
   useEffect(() => {
+    if (streaming) return // freeze the quote once streaming starts
     const id = window.setInterval(() => {
       setQi((j) => (j + 1) % QUOTES.length)
     }, 3600)
     return () => window.clearInterval(id)
-  }, [])
+  }, [streaming])
 
   return (
     <div
@@ -27,36 +34,40 @@ export function LoadingOracle() {
       <div className="relative h-24 w-24">
         <motion.div
           className="absolute inset-0 rounded-full border-2 border-[#d4af37]/40"
-          animate={{ rotate: 360 }}
+          animate={reduceMotion ? {} : { rotate: 360 }}
           transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
         />
         <motion.div
           className="absolute inset-2 rounded-full border border-[#06b6d4]/50"
-          animate={{ rotate: -360 }}
+          animate={reduceMotion ? {} : { rotate: -360 }}
           transition={{ duration: 5, repeat: Infinity, ease: 'linear' }}
         />
         <motion.div
           className="absolute inset-0 flex items-center justify-center font-display text-3xl text-[#d4af37]"
-          animate={{ scale: [1, 1.08, 1], opacity: [0.7, 1, 0.7] }}
+          animate={reduceMotion ? {} : { scale: [1, 1.08, 1], opacity: [0.7, 1, 0.7] }}
           transition={{ duration: 2, repeat: Infinity }}
         >
           ☾
         </motion.div>
       </div>
       <p className="text-center font-display text-base tracking-[0.2em] text-[#d4af37] sm:text-lg">
-        Đang hỏi Oracle…
+        {streaming ? 'Oracle đang viết…' : 'Đang hỏi Oracle…'}
       </p>
-      <motion.p
-        key={qi}
-        className="min-h-[3rem] text-center font-body text-base italic leading-relaxed text-[#f5f0e6]/72 sm:text-lg"
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-      >
-        {QUOTES[qi]}
-      </motion.p>
-      <p className="text-center font-body text-sm text-[#f5f0e6]/48 sm:text-base">
-        Gemini đang dệt lời giải từ các lá bạn đã rút.
+      {!streaming && (
+        <motion.p
+          key={qi}
+          className="min-h-[3rem] text-center font-body text-base italic leading-relaxed text-[#f5f0e6]/72 sm:text-lg"
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35 }}
+        >
+          {QUOTES[qi]}
+        </motion.p>
+      )}
+      <p className="text-center font-body text-sm text-[#f5f0e6]/65 sm:text-base">
+        {streaming
+          ? 'Lời giải đang hiện ra từng phần phía dưới.'
+          : 'Gemini đang dệt lời giải từ các lá bạn đã rút.'}
       </p>
     </div>
   )

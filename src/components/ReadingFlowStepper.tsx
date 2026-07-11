@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import type { ReadingStep } from '../types'
 
 interface ReadingFlowStepperProps {
@@ -17,8 +17,8 @@ export function ReadingFlowStepper({
   step,
   allCardsFaceUp,
 }: ReadingFlowStepperProps) {
-  const flipDone =
-    allCardsFaceUp || step === 'reading' || step === 'done'
+  const reduceMotion = useReducedMotion()
+  const flipDone = allCardsFaceUp || step === 'reading' || step === 'done'
   const readDone = step === 'done'
 
   const doneAt = (i: number) => {
@@ -57,15 +57,16 @@ export function ReadingFlowStepper({
                 active
                   ? 'border-[#d4af37]/70 bg-[#d4af37]/10 shadow-[0_0_20px_rgba(212,175,55,0.12)]'
                   : done
-                    ? 'border-[#f5f0e6]/15 bg-[#0a0a1a]/40 text-[#f5f0e6]/55'
-                    : 'border-[#f5f0e6]/10 bg-transparent text-[#f5f0e6]/38'
+                    ? 'border-[#f5f0e6]/15 bg-[#0a0a1a]/40 text-[#f5f0e6]/65'
+                    : 'border-[#f5f0e6]/10 bg-transparent text-[#f5f0e6]/55'
               }`}
-              animate={active ? { scale: [1, 1.02, 1] } : { scale: 1 }}
+              animate={active && !reduceMotion ? { scale: [1, 1.02, 1] } : { scale: 1 }}
               transition={
-                active
+                active && !reduceMotion
                   ? { duration: 2.2, repeat: Infinity, ease: 'easeInOut' }
                   : {}
               }
+              aria-current={active ? 'step' : undefined}
             >
               <span
                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
@@ -73,14 +74,14 @@ export function ReadingFlowStepper({
                     ? 'bg-[#d4af37]/25 text-[#d4af37]'
                     : active
                       ? 'bg-[#7c3aed]/35 text-[#f5f0e6]'
-                      : 'bg-[#f5f0e6]/8 text-[#f5f0e6]/45'
+                      : 'bg-[#f5f0e6]/8 text-[#f5f0e6]/65'
                 }`}
               >
                 {done && !active ? '✓' : i + 1}
               </span>
               <span
                 className={`font-display text-xs tracking-wide sm:text-sm ${
-                  active ? 'text-[#f5f0e6]' : 'text-[#f5f0e6]/65'
+                  active ? 'text-[#f5f0e6]' : 'text-[#f5f0e6]/75'
                 }`}
               >
                 {s.label}

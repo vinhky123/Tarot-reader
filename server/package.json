@@ -1,0 +1,14 @@
+{
+  "name": "tarot-reader-proxy",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Server-side proxy that holds the Gemini API key so it never reaches the browser bundle.",
+  "main": "proxy.mjs",
+  "scripts": {
+    "start": "node proxy.mjs"
+  },
+  "dependencies": {
+    "@google/genai": "^1.48.0"
+  }
+}

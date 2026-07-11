@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { useEffect } from 'react'
 
 interface TarotDeckProps {
@@ -9,30 +9,38 @@ interface TarotDeckProps {
 const stackOffsets = [0, 3, -2, 4, -3, 2, -4]
 
 export function TarotDeck({ active, onComplete }: TarotDeckProps) {
+  const reduceMotion = useReducedMotion()
   useEffect(() => {
     if (!active) return
-    const t = window.setTimeout(onComplete, 3000)
+    // When motion is reduced, skip the theatrical 3s shuffle.
+    const t = window.setTimeout(onComplete, reduceMotion ? 600 : 3000)
     return () => window.clearTimeout(t)
-  }, [active, onComplete])
+  }, [active, onComplete, reduceMotion])
 
   if (!active) return null
 
   return (
     <div
       className="relative mx-auto flex h-48 items-center justify-center sm:h-56"
-      aria-hidden
+      role="status"
+      aria-live="polite"
     >
+      <span className="sr-only">Đang xáo bài…</span>
       {stackOffsets.map((off, i) => (
         <motion.div
           key={i}
           className="absolute h-36 w-[100px] rounded-lg border-2 border-[#d4af37]/45 bg-gradient-to-br from-[#1a0a2e] to-[#0f172a] shadow-lg sm:h-44 sm:w-[118px]"
           initial={{ x: 0, y: 0, rotate: off, scale: 1 - i * 0.02 }}
-          animate={{
-            x: [0, (i % 2 ? 1 : -1) * 22, 0, (i % 2 ? -1 : 1) * 18, 0],
-            y: [0, -10, 4, -6, 0],
-            rotate: [off, off + 12, off - 8, off + 6, off],
-            scale: [1 - i * 0.02, 1 - i * 0.02 + 0.02, 1 - i * 0.02],
-          }}
+          animate={
+            reduceMotion
+              ? { x: 0, y: 0, rotate: off, scale: 1 - i * 0.02 }
+              : {
+                  x: [0, (i % 2 ? 1 : -1) * 22, 0, (i % 2 ? -1 : 1) * 18, 0],
+                  y: [0, -10, 4, -6, 0],
+                  rotate: [off, off + 12, off - 8, off + 6, off],
+                  scale: [1 - i * 0.02, 1 - i * 0.02 + 0.02, 1 - i * 0.02],
+                }
+          }
           transition={{
             duration: 2.8,
             repeat: Infinity,
@@ -40,6 +48,7 @@ export function TarotDeck({ active, onComplete }: TarotDeckProps) {
             ease: 'easeInOut',
             delay: i * 0.08,
           }}
+          aria-hidden
         >
           <div className="flex h-full items-center justify-center font-display text-xl text-[#d4af37]/50">
             ✦
@@ -48,8 +57,9 @@ export function TarotDeck({ active, onComplete }: TarotDeckProps) {
       ))}
       <motion.p
         className="absolute bottom-0 font-display text-sm tracking-widest text-[#d4af37]/90"
-        animate={{ opacity: [0.5, 1, 0.5] }}
+        animate={reduceMotion ? {} : { opacity: [0.5, 1, 0.5] }}
         transition={{ duration: 1.8, repeat: Infinity }}
+        aria-hidden
       >
         Đang xáo bài…
       </motion.p>

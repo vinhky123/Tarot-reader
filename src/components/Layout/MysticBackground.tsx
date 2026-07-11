@@ -1,53 +1,69 @@
 import Particles, { initParticlesEngine } from '@tsparticles/react'
 import { loadSlim } from '@tsparticles/slim'
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
 /**
- * Cấu hình cố định ở scope module — tránh object mới mỗi lần render App
- * (tsparticles có thể reset hạt khi `options` đổi reference).
- * Không dùng repulse/hover; drift chậm + bounce để không respawn liên tục.
+ * Particle config. Motion is gated on prefers-reduced-motion: when the user
+ * asks for less motion we cut the count to a near-static handful and disable
+ * movement + opacity flicker, so the background stays calm instead of drifting.
  */
-const MYSTIC_PARTICLE_OPTIONS = {
-  fullScreen: { enable: false, zIndex: 0 },
-  background: { color: { value: 'transparent' } },
-  fpsLimit: 60,
-  pauseOnBlur: false,
-  particles: {
-    number: { value: 78, density: { enable: false } },
-    color: { value: ['#d4af37', '#7c3aed', '#06b6d4', '#f5f0e6'] },
-    opacity: {
-      value: { min: 0.1, max: 0.55 },
-      animation: {
-        enable: true,
-        speed: { min: 0.6, max: 2.4 },
-        sync: false,
-        destroy: 'none' as const,
-        startValue: 'random' as const,
+function buildParticleOptions(reduceMotion: boolean) {
+  return {
+    fullScreen: { enable: false, zIndex: 0 },
+    background: { color: { value: 'transparent' } },
+    fpsLimit: 60,
+    pauseOnBlur: true,
+    particles: {
+      number: { value: reduceMotion ? 14 : 78, density: { enable: false } },
+      color: { value: ['#d4af37', '#7c3aed', '#06b6d4', '#f5f0e6'] },
+      opacity: {
+        value: reduceMotion ? 0.28 : { min: 0.1, max: 0.55 },
+        animation: {
+          enable: !reduceMotion,
+          speed: { min: 0.6, max: 2.4 },
+          sync: false,
+          destroy: 'none' as const,
+          startValue: 'random' as const,
+        },
+      },
+      size: { value: { min: 0.5, max: 2.8 } },
+      move: {
+        enable: !reduceMotion,
+        speed: { min: 0.14, max: 0.36 },
+        direction: 'none' as const,
+        random: true,
+        straight: false,
+        outModes: { default: 'bounce' as const },
+        attract: { enable: false },
+        drift: 0,
+      },
+      links: { enable: false },
+      reduceDuplicates: true,
+    },
+    interactivity: {
+      detectsOn: 'canvas' as const,
+      events: {
+        onHover: { enable: false },
+        onClick: { enable: false },
+        resize: { enable: true },
       },
     },
-    size: { value: { min: 0.5, max: 2.8 } },
-    move: {
-      enable: true,
-      speed: { min: 0.14, max: 0.36 },
-      direction: 'none' as const,
-      random: true,
-      straight: false,
-      outModes: { default: 'bounce' as const },
-      attract: { enable: false },
-      drift: 0,
+    detectRetina: true,
+  }
+}
+
+function usePrefersReducedMotion(): boolean {
+  // useSyncExternalStore is the idiomatic way to read a live media query —
+  // avoids the setState-in-effect anti-pattern and stays in sync on changes.
+  return useSyncExternalStore(
+    (onChange) => {
+      const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+      mq.addEventListener('change', onChange)
+      return () => mq.removeEventListener('change', onChange)
     },
-    links: { enable: false },
-    reduceDuplicates: true,
-  },
-  interactivity: {
-    detectsOn: 'canvas' as const,
-    events: {
-      onHover: { enable: false },
-      onClick: { enable: false },
-      resize: { enable: true },
-    },
-  },
-  detectRetina: true,
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    () => false, // SSR fallback: assume no preference on the server.
+  )
 }
 
 function MysticMoon() {
@@ -92,6 +108,7 @@ function MysticMoon() {
 
 function MysticBackgroundInner() {
   const [ready, setReady] = useState(false)
+  const reduceMotion = usePrefersReducedMotion()
 
   useEffect(() => {
     initParticlesEngine(async (engine) => {
@@ -100,6 +117,8 @@ function MysticBackgroundInner() {
     })
   }, [])
 
+  const options = useMemo(() => buildParticleOptions(reduceMotion), [reduceMotion])
+
   if (!ready) return null
 
   return (
@@ -107,7 +126,7 @@ function MysticBackgroundInner() {
       <Particles
         id="mystic-particles"
         className="h-full w-full"
-        options={MYSTIC_PARTICLE_OPTIONS}
+        options={options}
       />
       <div
         className="absolute inset-0 z-[1] opacity-[0.12]"

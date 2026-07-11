@@ -149,3 +149,15 @@
     transform: scale(1.4);
   }
 }
+
+/* Respect prefers-reduced-motion: disable all decorative infinite animations.
+   One-off transitions (covers, card flips) are allowed — they communicate
+   state change, not ambiance. */
+@media (prefers-reduced-motion: reduce) {
+  .mystic-moon-spin,
+  .mystic-oracle-pulse,
+  .mystic-typing-dot,
+  .mystic-cover-twinkle {
+    animation: none !important;
+  }
+}

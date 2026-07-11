@@ -89,6 +89,7 @@ export function ReaderChat({
         <ul
           className="mt-6 max-h-[min(28rem,50svh)] space-y-4 overflow-y-auto pr-1"
           aria-label="Tin nhắn hỏi đáp"
+          aria-live="polite"
         >
           {followUps.map((turn, i) => (
             <li
@@ -148,7 +149,7 @@ export function ReaderChat({
           onChange={(e) => setDraft(e.target.value)}
           disabled={chatSending}
           placeholder="Ví dụ: Phần “tương lai” bạn nói là sao cụ thể hơn?"
-          className="w-full resize-y rounded-xl border border-[#f5f0e6]/18 bg-[#0a0a1a]/60 px-4 py-3 font-body text-base text-[#f5f0e6] transition-transform placeholder:text-[#f5f0e6]/35 focus:border-[#7c3aed]/50 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/25 focus-visible:scale-[1.005] disabled:opacity-50"
+          className="w-full resize-y rounded-xl border border-[#f5f0e6]/18 bg-[#0a0a1a]/60 px-4 py-3 font-body text-base text-[#f5f0e6] transition-transform placeholder:text-[#f5f0e6]/50 focus:border-[#7c3aed]/50 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/25 focus-visible:scale-[1.005] disabled:opacity-50"
         />
         <div className="flex flex-wrap items-center gap-3">
           <button

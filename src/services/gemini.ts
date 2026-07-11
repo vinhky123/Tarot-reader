@@ -1,67 +1,17 @@
-import { GoogleGenAI } from '@google/genai'
 import type { DrawnCard, ReaderTurn, Suit } from '../types'
 import type { SpreadDefinition } from '../data/spreads'
 
 /**
- * Model mặc định; ghi đè trong .env: VITE_GEMINI_MODEL=gemini-2.5-flash
- * Nếu 2.0-flash hết quota free tier, thử 2.5-flash / 1.5-flash (xem AI Studio).
+ * Client side of the Gemini proxy.
+ *
+ * The API key never lives in the browser. All calls go through the server-side
+ * proxy (see `server/proxy.mjs`) which holds GEMINI_API_KEY as a server-only
+ * secret and enforces per-IP rate limiting. This module just shapes the request
+ * and decodes the response.
+ *
+ * In dev, Vite proxies `/api` to http://localhost:8787 (see vite.config.ts). In
+ * prod, nginx proxies `/api` to the `proxy` service (see nginx.conf).
  */
-function resolvedModel(): string {
-  const fromEnv = import.meta.env.VITE_GEMINI_MODEL
-  if (fromEnv && String(fromEnv).trim()) {
-    return String(fromEnv).trim()
-  }
-  return 'gemini-2.0-flash'
-}
-
-const SYSTEM_INSTRUCTION = `Bạn là một tarot reader kỳ cựu — không phải chatbot giải thích bài, mà là người ngồi đối diện, nhìn thẳng vào người xem và nói điều cần nói.
-
-Giọng: trầm, thực, không hoa mỹ. Như người bạn đã đi qua nhiều thứ, không phán xét đạo đức, nhưng thẳng thắn và không vòng vo.
-
-Ví dụ câu mở đúng tone:
-- "Bài này nói về một điểm mắc kẹt mà bạn đã biết từ lâu, chỉ chưa chịu nhìn thẳng vào."
-- "Có gì đó đang được xây dựng — chậm, nhưng có nền."
-- "Năng lượng tháng này kéo bạn về hai hướng ngược nhau."
-
-Ví dụ câu mở SAI tone (tránh tuyệt đối):
-- "Chào bạn! Hãy cùng khám phá những thông điệp từ các lá bài nhé."
-- "Những lá bài này mang đến một thông điệp rất thú vị cho bạn."
-- "The Tower xuất hiện với hình ảnh một tòa tháp đang sụp đổ..."
-
-Luôn trả lời bằng tiếng Việt.
-Không đưa ra lời tiên tri tuyệt đối về sức khỏe, cái chết hay tài chính cụ thể; diễn giải theo hướng biểu tượng, năng lượng và lựa chọn.
-
-Ưu tiên trọng tâm:
-- Tập trung vào thông điệp cốt lõi và điều người xem cần hiểu ngay lúc này.
-- Không lan man, không rào dài, không lặp lại cùng một ý theo nhiều cách.
-- Có thể nhắc đến chi tiết biểu tượng trên lá nếu nó bổ sung insight, nhưng không mô tả hình ảnh một cách hời hợt. Dùng lá bài như bằng chứng để rút insight.
-- Không copy lại danh sách từ khóa hay "ý nghĩa kho" theo kiểu từ điển.
-- Chỉ dùng thông tin từ dữ liệu bài đã cho; không thêm lá bài hoặc vị trí không có trong trải bài.
-
-Định dạng cho bài đọc đầy đủ (lần đầu):
-- Độ dài mục tiêu: khoảng 350–600 từ (có thể lên đến 800 từ cho trải bài lớn như Celtic Cross).
-- Mở đầu 1–2 câu: nói thẳng thông điệp trung tâm của toàn bài. Không chào hỏi.
-- Đi qua từng vị trí theo thứ tự: mỗi vị trí 2–3 câu, trả lời trực tiếp "câu hỏi vị trí" được ghi trong prompt, gắn vào bối cảnh người xem.
-- Xác định lá bài nào là "chủ âm" của toàn bộ trải bài — lá mang năng lượng mạnh nhất hoặc lá lặp lại chủ đề xuyên suốt các vị trí.
-- Sau khi đi qua các vị trí, dành 1–2 câu để tổng hợp: các lá có mối liên kết gì với nhau? Chúng bổ trợ hay mâu thuẫn? Lá nào giữ vai trò chủ đạo?
-- Kết luận không quá 3 câu: 1 thông điệp then chốt + 1 gợi ý hành động cụ thể, nhẹ nhàng.
-- Có thể dùng tiêu đề phụ markdown ngắn (##), nhưng giữ ngắn gọn.
-
-Định dạng cho câu hỏi follow-up:
-- Độ dài mục tiêu: khoảng 100–250 từ.
-- Trả lời trực tiếp câu hỏi, thường 2–5 câu.
-- Chỉ nhắc lại phần cần thiết từ các lá/vị trí liên quan; không lặp toàn bộ bài đọc trước đó.
-- Nếu câu hỏi mơ hồ, chủ động nêu 1 cách hiểu hợp lý nhất và trả lời theo cách đó.`
-
-function client() {
-  const key = import.meta.env.VITE_GEMINI_API_KEY
-  if (!key || !String(key).trim()) {
-    throw new Error(
-      'Thiếu VITE_GEMINI_API_KEY. Sao chép .env.example thành .env và dán API key từ Google AI Studio.',
-    )
-  }
-  return new GoogleGenAI({ apiKey: String(key).trim() })
-}
 
 const SUIT_ELEMENT: Record<Suit, string> = {
   wands: 'Lửa (Fire)',
@@ -78,82 +28,6 @@ function isCourt(rank: number): boolean {
   return rank >= 11
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms))
-}
-
-function errorToRaw(err: unknown): string {
-  if (err instanceof Error) return err.message
-  if (typeof err === 'string') return err
-  return JSON.stringify(err)
-}
-
-/** Trích số giây chờ từ chuỗi lỗi API (vd: "Please retry in 26.57s"). */
-function parseRetrySecondsFromText(text: string): number | undefined {
-  const m = /retry in ([\d.]+)\s*s/i.exec(text)
-  if (!m) return undefined
-  const sec = Math.ceil(parseFloat(m[1]))
-  if (!Number.isFinite(sec) || sec < 1 || sec > 120) return undefined
-  return sec
-}
-
-function isRateLimitError(raw: string): boolean {
-  return (
-    raw.includes('429') ||
-    raw.includes('RESOURCE_EXHAUSTED') ||
-    raw.includes('quota') ||
-    raw.includes('Quota exceeded')
-  )
-}
-
-function formatGeminiFailure(raw: string, model: string): Error {
-  if (isRateLimitError(raw)) {
-    const wait = parseRetrySecondsFromText(raw)
-    const waitHint =
-      wait != null
-        ? ` API gợi ý thử lại sau khoảng ${wait} giây.`
-        : ''
-    return new Error(
-      `Gemini báo hết hạn mức (429) với model "${model}".${waitHint}
-
-Đây thường là giới hạn free tier (theo phút / theo ngày) hoặc dự án chưa bật thanh toán.
-
-Việc có thể làm:
-• Đợi rồi thử lại (đọc bài hoặc gửi tin chat).
-• Trong file .env đặt VITE_GEMINI_MODEL=gemini-2.5-flash hoặc gemini-1.5-flash rồi chạy lại dev server.
-• Xem hạn mức: https://ai.google.dev/gemini-api/docs/rate-limits
-• Theo dõi usage: https://ai.dev/rate-limit`,
-    )
-  }
-  if (raw.length > 600) {
-    return new Error(`Gemini lỗi: ${raw.slice(0, 500)}…`)
-  }
-  return new Error(`Gemini lỗi: ${raw}`)
-}
-
-async function generateWithRateLimitRetry(
-  model: string,
-  run: () => Promise<string>,
-): Promise<string> {
-  try {
-    return await run()
-  } catch (first: unknown) {
-    const raw = errorToRaw(first)
-    if (isRateLimitError(raw)) {
-      const wait = parseRetrySecondsFromText(raw)
-      if (wait != null && wait <= 90) {
-        await sleep(wait * 1000)
-        try {
-          return await run()
-        } catch (second: unknown) {
-          throw formatGeminiFailure(errorToRaw(second), model)
-        }
-      }
-    }
-    throw formatGeminiFailure(raw, model)
-  }
-}
-
 export function buildUserPrompt(
   spread: SpreadDefinition,
   drawn: DrawnCard[],
@@ -163,9 +37,10 @@ export function buildUserPrompt(
   const blocks = drawn.map((d) => {
     const pos = spread.positions[d.positionIndex]
     const num = cardNumber(d.card)
-    const r = cardNumber(d.card)
-    const courtLabel = d.card.arcana !== 'major' && isCourt(r) ? ' [Court]' : ''
-    const suitName = d.card.suit ? d.card.suit.charAt(0).toUpperCase() + d.card.suit.slice(1) : ''
+    const courtLabel = d.card.arcana !== 'major' && isCourt(num) ? ' [Court]' : ''
+    const suitName = d.card.suit
+      ? d.card.suit.charAt(0).toUpperCase() + d.card.suit.slice(1)
+      : ''
     const element = d.card.suit ? ` · ${SUIT_ELEMENT[d.card.suit]}` : ''
     const arcanaLabel = d.card.arcana === 'major' ? 'Major Arcana' : 'Minor Arcana'
     return [
@@ -212,7 +87,10 @@ function buildSpreadSummary(drawn: DrawnCard[]): string[] {
 
   const suitParts: string[] = []
   for (const [suit, count] of Object.entries(suitCounts)) {
-    if (count) suitParts.push(`${count} ${suit.charAt(0).toUpperCase() + suit.slice(1)} (${SUIT_ELEMENT[suit as Suit]})`)
+    if (count)
+      suitParts.push(
+        `${count} ${suit.charAt(0).toUpperCase() + suit.slice(1)} (${SUIT_ELEMENT[suit as Suit]})`,
+      )
   }
   if (suitParts.length > 0) lines.push(`• ${suitParts.join(' + ')}`)
   lines.push(`• ${upright} xuôi · ${reversed} ngược`)
@@ -221,7 +99,7 @@ function buildSpreadSummary(drawn: DrawnCard[]): string[] {
   return lines
 }
 
-/** Hai lượt đầu cho API: prompt tarot + lời giải model. */
+/** Hai lượt đầu cho thread reader: prompt tarot + lời giải model. */
 export function getInitialReaderThread(
   spread: SpreadDefinition,
   drawn: DrawnCard[],
@@ -234,101 +112,191 @@ export function getInitialReaderThread(
   ]
 }
 
-const MAX_THREAD_TURNS = 30
+// ─────────────────────────────────────────────────────────────────────────────
+// Proxy client (SSE streaming)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// The proxy responds to /api/reading and /api/chat with a Server-Sent Events
+// stream: `event: delta` chunks as text arrives, then a terminal `event: done`
+// (or `event: error`). We parse the stream incrementally so the UI can render
+// the interpretation as it's generated instead of waiting for the whole thing.
 
-function trimThreadForApi(turns: ReaderTurn[]): ReaderTurn[] {
-  if (turns.length <= MAX_THREAD_TURNS) return turns
-  return [...turns.slice(0, 2), ...turns.slice(-(MAX_THREAD_TURNS - 2))]
+interface SseEvent {
+  type: string
+  data: string
 }
 
-function turnsToContents(turns: ReaderTurn[]) {
-  return turns.map((t) => ({
-    role: t.role,
-    parts: [{ text: t.text }],
-  }))
+/**
+ * Parse a ReadableStream of SSE bytes into typed events. Resolves when the
+ * stream ends. Throws on AbortError (propagated from fetch).
+ */
+async function readSseStream(
+  body: ReadableStream<Uint8Array>,
+  onEvent: (ev: SseEvent) => void,
+): Promise<void> {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      // SSE events are separated by a blank line. Process complete events.
+      let sep = buffer.indexOf('\n\n')
+      while (sep !== -1) {
+        const rawEvent = buffer.slice(0, sep)
+        buffer = buffer.slice(sep + 2)
+        const ev = parseSseEvent(rawEvent)
+        if (ev) onEvent(ev)
+        sep = buffer.indexOf('\n\n')
+      }
+    }
+    // Flush any trailing event without a blank-line terminator.
+    if (buffer.trim()) {
+      const ev = parseSseEvent(buffer)
+      if (ev) onEvent(ev)
+    }
+  } finally {
+    reader.releaseLock()
+  }
 }
 
-const SPREAD_TEMPERATURE: Record<string, number> = {
-  one: 0.95,
-  three: 0.90,
-  five: 0.85,
-  celtic: 0.80,
+function parseSseEvent(raw: string): SseEvent | null {
+  let type = 'message'
+  const dataLines: string[] = []
+  for (const line of raw.split('\n')) {
+    if (line.startsWith('event:')) type = line.slice(6).trim()
+    else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim())
+  }
+  if (dataLines.length === 0 && type === 'message') return null
+  return { type, data: dataLines.join('\n') }
 }
 
-async function generateOnce(
-  ai: GoogleGenAI,
-  model: string,
-  userText: string,
-  cardCount: number,
-  spreadId: string,
+/** Client-side retry for transient network errors before the first byte. */
+const MAX_CLIENT_RETRIES = 2
+
+async function streamFromProxy(
+  url: string,
+  body: unknown,
+  onChunk: (delta: string) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
-  const temperature = SPREAD_TEMPERATURE[spreadId] ?? 0.9
-  const dynamicMaxTokens = Math.min(600 + cardCount * 300, 3000)
-  const response = await ai.models.generateContent({
-    model,
-    contents: userText,
-    config: {
-      systemInstruction: SYSTEM_INSTRUCTION,
-      temperature,
-      maxOutputTokens: dynamicMaxTokens,
-    },
-  })
-  const text = response.text
-  if (!text?.trim()) {
-    throw new Error('Gemini không trả về nội dung văn bản.')
+  let lastErr: unknown = null
+  let receivedAny = false
+
+  for (let attempt = 0; attempt <= MAX_CLIENT_RETRIES; attempt++) {
+    if (receivedAny) break // can't retry once we've shown partial output
+    try {
+      let res: Response
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'text/event-stream',
+          },
+          body: JSON.stringify(body),
+          signal,
+        })
+      } catch (e) {
+        if (e instanceof DOMException && e.name === 'AbortError') throw e
+        throw new Error(
+          'Không kết nối được tới server Oracle. Kiểm tra mạng rồi thử lại.',
+        )
+      }
+
+      if (!res.ok || !res.body) {
+        // Non-SSE error: try to read JSON error body.
+        let msg = `Server Oracle lỗi (HTTP ${res.status}).`
+        try {
+          const data = (await res.json()) as { error?: string }
+          if (data?.error) msg = data.error
+        } catch {
+          /* keep default */
+        }
+        throw new Error(msg)
+      }
+
+      let full = ''
+      let errMsg: string | null = null
+      await readSseStream(res.body, (ev) => {
+        if (ev.type === 'delta') {
+          try {
+            const parsed = JSON.parse(ev.data) as { delta?: string }
+            if (parsed.delta) {
+              full += parsed.delta
+              receivedAny = true
+              onChunk(parsed.delta)
+            }
+          } catch {
+            /* ignore malformed delta */
+          }
+        } else if (ev.type === 'error') {
+          try {
+            const parsed = JSON.parse(ev.data) as { message?: string }
+            errMsg = parsed.message ?? 'Oracle gặp lỗi không xác định.'
+          } catch {
+            errMsg = 'Oracle gặp lỗi không xác định.'
+          }
+        }
+        // 'done' event: final text already accumulated; nothing to do.
+      })
+
+      if (errMsg) throw new Error(errMsg)
+      if (!full.trim()) {
+        throw new Error('Oracle không trả về nội dung. Thử lại sau giây lát.')
+      }
+      return full
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') throw e
+      lastErr = e
+      // Retry only on connection-level failures (no bytes received yet).
+      if (receivedAny) throw e
+      if (attempt === MAX_CLIENT_RETRIES) throw e
+      const backoff = 500 * 2 ** attempt + Math.random() * 200
+      await new Promise((r) => setTimeout(r, backoff))
+    }
   }
-  return text.trim()
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error('Không kết nối được tới server Oracle.')
 }
 
-async function generateFromThread(
-  ai: GoogleGenAI,
-  model: string,
-  turns: ReaderTurn[],
-): Promise<string> {
-  const trimmed = trimThreadForApi(turns)
-  if (trimmed.length < 2) {
-    throw new Error('Hội thoại chưa đủ ngữ cảnh.')
-  }
-  const last = trimmed[trimmed.length - 1]
-  if (last.role !== 'user') {
-    throw new Error('Tin nhắn cuối phải từ người dùng.')
-  }
-  const response = await ai.models.generateContent({
-    model,
-    contents: turnsToContents(trimmed),
-    config: {
-      systemInstruction: SYSTEM_INSTRUCTION,
-      temperature: 0.75,
-      maxOutputTokens: 1500,
-    },
-  })
-  const text = response.text
-  if (!text?.trim()) {
-    throw new Error('Gemini không trả về nội dung văn bản.')
-  }
-  return text.trim()
+export interface ProxyReadingRequest {
+  spread: SpreadDefinition
+  drawn: DrawnCard[]
+  question: string
 }
 
+export interface ProxyChatRequest {
+  turns: ReaderTurn[]
+}
+
+/**
+ * Yêu cầu một bài đọc Tarot qua proxy (streaming). `onChunk` được gọi mỗi khi
+ * một đoạn text mới về — dùng để render tiến triển. Truyền `signal` để huỷ.
+ */
 export async function requestTarotReading(
   spread: SpreadDefinition,
   drawn: DrawnCard[],
   userQuestion: string,
+  onChunk: (delta: string) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
-  const ai = client()
-  const model = resolvedModel()
-  const userText = buildUserPrompt(spread, drawn, userQuestion)
-  return generateWithRateLimitRetry(model, () =>
-    generateOnce(ai, model, userText, drawn.length, spread.id),
+  return streamFromProxy(
+    '/api/reading',
+    { spread, drawn, question: userQuestion },
+    onChunk,
+    signal,
   )
 }
 
-/** Tiếp tục chat: \`turns\` kết thúc bằng tin user mới nhất. */
+/** Tiếp tục chat (streaming). `turns` kết thúc bằng tin user mới nhất. */
 export async function continueReaderConversation(
   turns: ReaderTurn[],
+  onChunk: (delta: string) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
-  const ai = client()
-  const model = resolvedModel()
-  return generateWithRateLimitRetry(model, () =>
-    generateFromThread(ai, model, turns),
-  )
+  return streamFromProxy('/api/chat', { turns }, onChunk, signal)
 }

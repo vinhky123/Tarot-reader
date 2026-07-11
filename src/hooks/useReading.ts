@@ -28,6 +28,10 @@ export function useReading() {
   const [error, setError] = useState<string | null>(null)
   const [userQuestion, setUserQuestion] = useState('')
   const flipAllTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  // AbortController for the in-flight Gemini request (reading or chat).
+  // Aborted whenever the user navigates away, resets, or starts a new draw —
+  // prevents a late response from overwriting fresh state.
+  const inflightRef = useRef<AbortController | null>(null)
 
   const spread = spreadId ? getSpreadById(spreadId) : undefined
 
@@ -38,8 +42,17 @@ export function useReading() {
     flipAllTimeoutsRef.current = []
   }, [])
 
+  /** Cancel any in-flight API request. Safe to call when nothing is running. */
+  const abortInflight = useCallback(() => {
+    if (inflightRef.current) {
+      inflightRef.current.abort()
+      inflightRef.current = null
+    }
+  }, [])
+
   const selectSpread = useCallback((id: string) => {
     clearFlipAllTimeouts()
+    abortInflight()
     setSpreadId(id)
     setDrawn(null)
     setCardFaceUp([])
@@ -48,11 +61,12 @@ export function useReading() {
     setChatError(null)
     setError(null)
     setStep('spread')
-  }, [clearFlipAllTimeouts])
+  }, [clearFlipAllTimeouts, abortInflight])
 
   const startShuffleAndDraw = useCallback(() => {
     if (!spread) return
     clearFlipAllTimeouts()
+    abortInflight()
     const deck = shuffleIndices()
     const picked = deck.slice(0, spread.cardCount)
     const next: DrawnCard[] = picked.map((cardId, i) => ({
@@ -67,7 +81,7 @@ export function useReading() {
     setChatError(null)
     setError(null)
     setStep('shuffle')
-  }, [spread, clearFlipAllTimeouts])
+  }, [spread, clearFlipAllTimeouts, abortInflight])
 
   const finishShuffle = useCallback(() => {
     setStep('placed')
@@ -110,6 +124,9 @@ export function useReading() {
     if (!cardFaceUp.length || cardFaceUp.length !== drawn.length) return
     if (!cardFaceUp.every(Boolean)) return
     clearFlipAllTimeouts()
+    abortInflight()
+    const controller = new AbortController()
+    inflightRef.current = controller
     setStep('reading')
     setError(null)
     setReadingText(null)
@@ -119,21 +136,42 @@ export function useReading() {
       const { requestTarotReading, getInitialReaderThread } = await import(
         '../services/gemini'
       )
-      const text = await requestTarotReading(spread, drawn, userQuestion)
+      // Stream: update readingText incrementally so the UI can render partial
+      // output as it arrives. Each setReadingText here is additive.
+      let acc = ''
+      const text = await requestTarotReading(
+        spread,
+        drawn,
+        userQuestion,
+        (delta) => {
+          acc += delta
+          // Only flip to 'reading'→'done' flow once we have real content; while
+          // streaming we keep step='reading' so the spinner stays but the
+          // partial text renders below it.
+          setReadingText(acc)
+        },
+        controller.signal,
+      )
       setReadingText(text)
       setReaderThread(getInitialReaderThread(spread, drawn, userQuestion, text))
       setStep('done')
     } catch (e) {
+      if (controller.signal.aborted) return // user navigated away — silent
       const msg = e instanceof Error ? e.message : 'Lỗi không xác định'
       setError(msg)
       setStep('placed')
+    } finally {
+      if (inflightRef.current === controller) inflightRef.current = null
     }
-  }, [spread, drawn, userQuestion, cardFaceUp, clearFlipAllTimeouts])
+  }, [spread, drawn, userQuestion, cardFaceUp, clearFlipAllTimeouts, abortInflight])
 
   const sendReaderMessage = useCallback(
     async (input: string) => {
       const t = input.trim()
       if (!t || readerThread.length < 2) return
+      abortInflight()
+      const controller = new AbortController()
+      inflightRef.current = controller
       const before = readerThread
       const withUser: ReaderTurn[] = [...before, { role: 'user', text: t }]
       setReaderThread(withUser)
@@ -141,20 +179,37 @@ export function useReading() {
       setChatError(null)
       try {
         const { continueReaderConversation } = await import('../services/gemini')
-        const reply = await continueReaderConversation(withUser)
+        // Stream: append a placeholder model turn and grow it as chunks arrive.
+        let acc = ''
+        setReaderThread([...withUser, { role: 'model', text: '' }])
+        const reply = await continueReaderConversation(
+          withUser,
+          (delta) => {
+            acc += delta
+            setReaderThread([...withUser, { role: 'model', text: acc }])
+          },
+          controller.signal,
+        )
         setReaderThread([...withUser, { role: 'model', text: reply }])
       } catch (e) {
+        // On abort, roll back the optimistic user turn and stay quiet.
+        if (controller.signal.aborted) {
+          setReaderThread(before)
+          return
+        }
         setReaderThread(before)
         setChatError(e instanceof Error ? e.message : 'Lỗi không xác định')
       } finally {
+        if (inflightRef.current === controller) inflightRef.current = null
         setChatSending(false)
       }
     },
-    [readerThread],
+    [readerThread, abortInflight],
   )
 
   const resetAll = useCallback(() => {
     clearFlipAllTimeouts()
+    abortInflight()
     setSpreadId(null)
     setDrawn(null)
     setCardFaceUp([])
@@ -165,7 +220,7 @@ export function useReading() {
     setError(null)
     setUserQuestion('')
     setStep('spread')
-  }, [clearFlipAllTimeouts])
+  }, [clearFlipAllTimeouts, abortInflight])
 
   return {
     step,

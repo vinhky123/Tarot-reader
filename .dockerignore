@@ -1,3 +1,4 @@
+# Build artifacts
 node_modules
 dist
 .git
@@ -6,6 +7,18 @@ dist
 .idea
 .cursor
 coverage
+
+# Secrets — MUST NOT enter any image layer
+.env
+.env.*
+!.env.example
+
+# Docs / scripts not needed at build time
+docs
+*.md
+!README.md
+
+# OS / editor cruft
 *.log
 npm-debug.log*
 yarn-debug.log*

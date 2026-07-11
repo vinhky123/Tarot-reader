@@ -1,19 +1,24 @@
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 
 export function Navbar() {
+  const reduceMotion = useReducedMotion()
   return (
     <header className="relative z-20 border-b border-[#d4af37]/20 bg-[#0a0a1a]/55 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl flex-col items-center gap-2 px-5 py-5 sm:flex-row sm:justify-between sm:px-8 sm:py-5 lg:px-12">
         <motion.div
           className="flex items-center gap-3"
-          initial={{ opacity: 0, y: -8 }}
+          initial={reduceMotion ? false : { opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
           <motion.span
             className="inline-block font-display text-xl font-semibold tracking-[0.2em] text-[#d4af37] sm:text-2xl"
             aria-hidden
-            animate={{ rotate: [0, 12, -8, 6, 0], scale: [1, 1.06, 1] }}
+            animate={
+              reduceMotion
+                ? {}
+                : { rotate: [0, 12, -8, 6, 0], scale: [1, 1.06, 1] }
+            }
             transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
           >
             ✦

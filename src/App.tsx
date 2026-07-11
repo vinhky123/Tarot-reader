@@ -111,7 +111,7 @@ export default function App() {
                         onChange={(e) => r.setUserQuestion(e.target.value)}
                         rows={3}
                         placeholder="Ví dụ: Mình nên thay đổi gì trong công việc thời gian tới?"
-                        className="min-h-[5.5rem] w-full resize-y rounded-xl border border-[#f5f0e6]/20 bg-[#0a0a1a]/60 px-4 py-3.5 font-body text-base leading-relaxed text-[#f5f0e6] transition-transform placeholder:text-[#f5f0e6]/38 focus:border-[#7c3aed]/55 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/35 focus-visible:scale-[1.005] sm:px-5 sm:py-4 sm:text-[1.05rem]"
+                        className="min-h-[5.5rem] w-full resize-y rounded-xl border border-[#f5f0e6]/20 bg-[#0a0a1a]/60 px-4 py-3.5 font-body text-base leading-relaxed text-[#f5f0e6] transition-transform placeholder:text-[#f5f0e6]/50 focus:border-[#7c3aed]/55 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/35 focus-visible:scale-[1.005] sm:px-5 sm:py-4 sm:text-[1.05rem]"
                       />
                     </label>
 
@@ -183,8 +183,13 @@ export default function App() {
                 )}
 
                 {r.step === 'reading' && (
-                  <div className="flex justify-center py-6">
-                    <LoadingOracle />
+                  <div className="flex flex-col items-center gap-6 py-6">
+                    <LoadingOracle streaming={Boolean(r.readingText?.trim())} />
+                    {r.readingText?.trim() && (
+                      <div className="w-full max-w-5xl">
+                        <ReadingResult text={r.readingText} streaming />
+                      </div>
+                    )}
                   </div>
                 )}
 

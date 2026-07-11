@@ -1,11 +1,33 @@
 services:
-  tarot-reader:
+  # Static React app served by nginx. Knows nothing about the Gemini key.
+  web:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        VITE_GEMINI_API_KEY: ${VITE_GEMINI_API_KEY}
+        # VITE_GEMINI_MODEL is purely informational now (kept for backwards
+        # compat in the bundle) — the model is actually selected by the proxy
+        # via GEMINI_MODEL. The key is intentionally NOT passed here.
         VITE_GEMINI_MODEL: ${VITE_GEMINI_MODEL:-gemini-2.0-flash}
     ports:
       - "8080:80"
+    depends_on:
+      - proxy
+    restart: unless-stopped
+
+  # Gemini proxy. Holds GEMINI_API_KEY as a server-only secret. Never exposes
+  # the key to the browser.
+  proxy:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      # Comma-separated list of allowed origins. In docker-compose the browser
+      # hits nginx on :8080, so allow that. Override in prod.
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8080}
+      RATE_LIMIT_RPM: ${RATE_LIMIT_RPM:-20}
+    expose:
+      - "8787"
     restart: unless-stopped

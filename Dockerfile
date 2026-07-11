@@ -7,10 +7,10 @@ RUN npm ci
 
 COPY . .
 
-# Vite only exposes env vars prefixed with VITE_
-ARG VITE_GEMINI_API_KEY
+# The web bundle no longer needs the Gemini key — that lives only in the proxy
+# service. VITE_GEMINI_MODEL is kept purely informational; the proxy selects the
+# actual model via GEMINI_MODEL.
 ARG VITE_GEMINI_MODEL=gemini-2.0-flash
-ENV VITE_GEMINI_API_KEY=$VITE_GEMINI_API_KEY
 ENV VITE_GEMINI_MODEL=$VITE_GEMINI_MODEL
 
 RUN npm run build
