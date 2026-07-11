@@ -275,6 +275,111 @@ New:
    rotates in 0.35 s with no infinite loops.
 5. Not committed to git — review with `git diff` and commit when ready.
 
+## Sprint 2.5 — Vercel deployment hotfix — ✅ COMPLETE
+
+**Date:** 2026-07-11
+**Goal:** Make the Gemini proxy deployable on Vercel so the live site actually
+works. Sprint 1 built `server/proxy.mjs` for Docker Compose; deploying to Vercel
+(serverless) left `/api/*` returning 404 and broke all readings.
+
+### Root cause (from [VERIFICATION.md](./VERIFICATION.md))
+
+`server/proxy.mjs` is a raw `http.createServer().listen()` — Vercel's serverless
+platform doesn't run long-lived Node servers. The repo had no `vercel.json`, no
+root `/api/` directory, and no serverless handler export.
+
+### What was done
+
+Created **Vercel Edge serverless functions** that reuse the same prompt-building,
+validation, streaming, and safety logic as the Docker proxy:
+
+- **`api/_shared.ts`** — the single source of truth for: system instruction,
+  prompt builders, payload validation (`ValidationError`), `safetySettings`,
+  Gemini streaming with retry (429/network/5xx, pre-first-chunk only),
+  `friendlyError`, in-memory per-IP rate limit, and SSE helpers
+  (`sseResponse` / `sseEvent`). Both deploy targets (Vercel `api/` + Docker
+  `server/`) now share the same logic shape.
+- **`api/reading.ts`** — `POST /api/reading` Edge function. Validates payload
+  → returns `400` JSON pre-stream; on valid input opens an SSE `Response` with
+  a `ReadableStream` body and pipes `event: delta` → `event: done`/`event: error`.
+  Aborts upstream on client disconnect or 60s timeout.
+- **`api/chat.ts`** — `POST /api/chat`, same pattern.
+- **`api/health.ts`** — `GET /api/health` → `{ok, model, configured}`.
+- **`vercel.json`** — framework `vite`, build command, `dist` output, SPA rewrite
+  that excludes `/api/`.
+- **`tsconfig.api.json`** — separate TS config for `api/` (ES2022, Node types,
+  no DOM libs, no React). Wired into `tsconfig.json` references so `tsc -b`
+  typechecks it.
+- **`eslint.config.js`** — added an `api/**/*.ts` block with Edge runtime globals
+  (`ReadableStream`, `Response`, `Request`, etc.) and React rules off.
+- **`scripts/test-api.ts`** — direct test harness (`npm run test:api`) that
+  imports the handlers and exercises them with constructed `Request` objects.
+  No Vercel CLI login required.
+- **`package.json`** — added `@google/genai` back (server-only; Vite never
+  bundles it because no `src/` code imports it), `tsx` devDep, `test:api` script.
+- **`.env.example`** — updated with Vercel deployment instructions.
+
+### Verification (all green)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Typecheck (incl. `api/`) | `npm run typecheck` | ✅ clean |
+| Lint (incl. `api/`) | `npm run lint` | ✅ clean |
+| Build | `npm run build` | ✅ 1033 modules, 332 ms |
+| Key in bundle? | `grep -rhoE "AIza…" dist/` | ✅ absent |
+| `@google/genai` in client bundle? | `grep -l "generativelanguage" dist/` | ✅ absent (server-only) |
+| Client calls `/api`? | `grep gemini-*.js` | ✅ `/api/reading` + `/api/chat` |
+| API function tests | `npm run test:api` | ✅ **11/11 PASS** |
+
+The 11 function tests (`scripts/test-api.ts`) cover: health GET, CORS preflight,
+wrong-method 405, bad-payload 400 JSON (pre-stream), valid-payload SSE stream
+opening, dummy-key error event, and chat validation.
+
+### ⚠️ Action required to go live
+
+The code is ready, but **you must set the env var on Vercel**:
+
+1. Go to your Vercel project → **Settings → Environment Variables**.
+2. Add `GEMINI_API_KEY` = your Google AI Studio key (no `VITE_` prefix).
+3. (Optional) Add `GEMINI_MODEL`, `RATE_LIMIT_RPM`.
+4. Redeploy (push to `master` or click Redeploy).
+
+Until `GEMINI_API_KEY` is set, `/api/health` will return
+`{"ok":true,"configured":false}` and `/api/reading` will return `503`.
+
+### Files changed
+
+```
+New:
+  api/_shared.ts          (shared logic: prompts, validation, streaming, safety, rate limit)
+  api/health.ts           (GET /api/health)
+  api/reading.ts          (POST /api/reading — SSE stream)
+  api/chat.ts             (POST /api/chat — SSE stream)
+  vercel.json             (Vite framework + SPA rewrite)
+  tsconfig.api.json       (TS config for api/)
+  scripts/test-api.ts     (direct function test harness)
+
+Modified:
+  package.json            (+ @google/genai, + tsx, + test:api script)
+  tsconfig.json           (+ tsconfig.api.json reference)
+  eslint.config.js        (+ api/**/*.ts block with Edge globals, server/ ignored)
+  .env.example            (Vercel deployment instructions)
+```
+
+### Note on the Docker proxy
+
+`server/proxy.mjs` is untouched and still works for Docker Compose deployments.
+The two deploy targets now coexist:
+
+- **Vercel** → `api/*.ts` Edge functions (this sprint).
+- **Docker** → `server/proxy.mjs` + `docker-compose.yml` (Sprint 1).
+
+The logic is mirrored (not shared via a package) to keep both zero-config. If
+they drift, prefer the Vercel `api/_shared.ts` as canonical and backport to
+`server/proxy.mjs`.
+
+---
+
 ## Sprint 3 — Depth — ⏳ NOT STARTED
 
 #9 correspondences data layer (the differentiator — Golden Dawn astrology,
