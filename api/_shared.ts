@@ -10,6 +10,13 @@
  */
 
 import { GoogleGenAI } from '@google/genai'
+import {
+  computeDignities,
+  computeReadingMeta as computeMeta,
+  getCorrespondence,
+  type Astrology,
+  type Element,
+} from '../src/data/correspondences'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config (server-only env vars — NO VITE_ prefix, so never inlined to client)
@@ -84,10 +91,10 @@ Không đưa ra lời tiên tri tuyệt đối về sức khỏe, cái chết ha
 - Nếu câu hỏi mơ hồ, chủ động nêu 1 cách hiểu hợp lý nhất và trả lời theo cách đó.`
 
 const SUIT_ELEMENT: Record<string, string> = {
-  wands: 'Lửa (Fire)',
-  cups: 'Nước (Water)',
-  swords: 'Khí (Air)',
-  pentacles: 'Đất (Earth)',
+  wands: 'Fire',
+  cups: 'Water',
+  swords: 'Air',
+  pentacles: 'Earth',
 }
 
 const SPREAD_TEMPERATURE: Record<string, number> = {
@@ -95,6 +102,9 @@ const SPREAD_TEMPERATURE: Record<string, number> = {
   three: 0.9,
   five: 0.85,
   celtic: 0.8,
+  horseshoe: 0.82,
+  relationship: 0.85,
+  career: 0.85,
 }
 
 const MAX_THREAD_TURNS = 30
@@ -116,6 +126,20 @@ function isCourt(rank: number): boolean {
   return rank >= 11
 }
 
+/** Format a card's astrology correspondence into a compact prompt string. */
+function formatAstrology(astro: Astrology): string {
+  switch (astro.kind) {
+    case 'zodiac':
+      return `${astro.sign} (${astro.planet}, ${astro.dates})`
+    case 'decan':
+      return `${astro.sign} (${astro.planet}, ${astro.dates})`
+    case 'planet':
+      return astro.planet
+    case 'element':
+      return 'thuần nguyên tố'
+  }
+}
+
 function buildSpreadSummary(drawn: DrawnCard[]): string[] {
   if (drawn.length < 2) return []
   const majorCount = drawn.filter((d) => d.card.arcana === 'major').length
@@ -125,9 +149,12 @@ function buildSpreadSummary(drawn: DrawnCard[]): string[] {
 
   const suitCounts: Record<string, number> = {}
   let courtCount = 0
+  const elements: Element[] = []
   for (const d of drawn) {
     if (d.card.suit) suitCounts[d.card.suit] = (suitCounts[d.card.suit] ?? 0) + 1
     if (d.card.arcana === 'minor' && isCourt(cardNumber(d.card))) courtCount++
+    const corr = getCorrespondence(d.card.id)
+    if (corr) elements.push(corr.element)
   }
 
   const lines: string[] = ['Tổng quan bộ bài:']
@@ -142,6 +169,13 @@ function buildSpreadSummary(drawn: DrawnCard[]): string[] {
   if (suitParts.length > 0) lines.push(`• ${suitParts.join(' + ')}`)
   lines.push(`• ${upright} xuôi · ${reversed} ngược`)
   if (courtCount > 0) lines.push(`• ${courtCount} Court (nhân vật / nguyên mẫu)`)
+
+  // Elemental dignities — computed from Golden Dawn rules.
+  const dignities = computeDignities(elements)
+  for (const dg of dignities) {
+    lines.push(`• Dignity: ${dg.pair[0]} + ${dg.pair[1]} — ${dg.gloss}`)
+  }
+
   return lines
 }
 
@@ -158,13 +192,16 @@ function buildUserPrompt(
     const suitName = d.card.suit
       ? d.card.suit.charAt(0).toUpperCase() + d.card.suit.slice(1)
       : ''
-    const element = d.card.suit ? ` · ${SUIT_ELEMENT[d.card.suit]}` : ''
+    const corr = getCorrespondence(d.card.id)
+    const elementStr = corr ? corr.element : d.card.suit ? SUIT_ELEMENT[d.card.suit] : ''
+    const astroStr = corr ? ` · ${formatAstrology(corr.astrology)}` : ''
+    const yesNoStr = corr ? ` · ${corr.yesNo}` : ''
     const arcanaLabel = d.card.arcana === 'major' ? 'Major Arcana' : 'Minor Arcana'
     return [
       `--- Vị trí ${d.positionIndex + 1}: ${pos?.label ?? '?'} ---`,
       `Câu hỏi: "${pos?.hint ?? ''}"`,
       `Lá: ${d.card.name} (${d.reversed ? 'ngược' : 'xuôi'})${courtLabel}`,
-      `Thông số: Số ${num} · ${arcanaLabel}${d.card.suit ? ` · ${suitName}${element}` : ''}`,
+      `Thông số: Số ${num} · ${arcanaLabel}${d.card.suit ? ` · ${suitName} · ${elementStr}` : ''}${astroStr}${yesNoStr}`,
       `Từ khóa: ${d.card.keywords.join(', ')}`,
     ].join('\n')
   })
@@ -518,3 +555,7 @@ export const CONFIG = {
   UPSTREAM_TIMEOUT_MS,
   RATE_LIMIT_RPM,
 }
+
+// Re-export the deterministic reading-metadata computation so api/reading.ts
+// can emit it as a `meta` SSE event before streaming the prose.
+export { computeMeta as computeReadingMeta }

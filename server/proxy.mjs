@@ -21,6 +21,14 @@
 
 import http from 'node:http'
 import { GoogleGenAI } from '@google/genai'
+// correspondences.ts is pure data+logic (no React), loaded via the tsx loader
+// (see server/package.json + server/Dockerfile). Keeps a single source of truth
+// shared with the client and the Vercel Edge functions.
+import {
+  computeDignities,
+  computeReadingMeta,
+  getCorrespondence,
+} from '../src/data/correspondences.ts'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config (server-only — never prefixed with VITE_)
@@ -89,10 +97,10 @@ Không đưa ra lời tiên tri tuyệt đối về sức khỏe, cái chết ha
 - Nếu câu hỏi mơ hồ, chủ động nêu 1 cách hiểu hợp lý nhất và trả lời theo cách đó.`
 
 const SUIT_ELEMENT = {
-  wands: 'Lửa (Fire)',
-  cups: 'Nước (Water)',
-  swords: 'Khí (Air)',
-  pentacles: 'Đất (Earth)',
+  wands: 'Fire',
+  cups: 'Water',
+  swords: 'Air',
+  pentacles: 'Earth',
 }
 
 const SPREAD_TEMPERATURE = {
@@ -100,6 +108,20 @@ const SPREAD_TEMPERATURE = {
   three: 0.9,
   five: 0.85,
   celtic: 0.8,
+  horseshoe: 0.82,
+  relationship: 0.85,
+  career: 0.85,
+}
+
+function formatAstrology(astro) {
+  switch (astro.kind) {
+    case 'zodiac':
+      return `${astro.sign} (${astro.planet}, ${astro.dates})`
+    case 'planet':
+      return astro.planet
+    case 'element':
+      return 'thuần nguyên tố'
+  }
 }
 
 const MAX_THREAD_TURNS = 30
@@ -135,9 +157,12 @@ function buildSpreadSummary(drawn) {
 
   const suitCounts = {}
   let courtCount = 0
+  const elements = []
   for (const d of drawn) {
     if (d.card.suit) suitCounts[d.card.suit] = (suitCounts[d.card.suit] ?? 0) + 1
     if (d.card.arcana === 'minor' && isCourt(cardNumber(d.card))) courtCount++
+    const corr = getCorrespondence(d.card.id)
+    if (corr) elements.push(corr.element)
   }
 
   const lines = ['Tổng quan bộ bài:']
@@ -153,6 +178,13 @@ function buildSpreadSummary(drawn) {
   if (suitParts.length > 0) lines.push(`• ${suitParts.join(' + ')}`)
   lines.push(`• ${upright} xuôi · ${reversed} ngược`)
   if (courtCount > 0) lines.push(`• ${courtCount} Court (nhân vật / nguyên mẫu)`)
+
+  // Elemental dignities — computed from Golden Dawn rules.
+  const dignities = computeDignities(elements)
+  for (const dg of dignities) {
+    lines.push(`• Dignity: ${dg.pair[0]} + ${dg.pair[1]} — ${dg.gloss}`)
+  }
+
   return lines
 }
 
@@ -166,14 +198,17 @@ function buildUserPrompt(spread, drawn, userQuestion) {
     const suitName = d.card.suit
       ? d.card.suit.charAt(0).toUpperCase() + d.card.suit.slice(1)
       : ''
-    const element = d.card.suit ? ` · ${SUIT_ELEMENT[d.card.suit]}` : ''
+    const corr = getCorrespondence(d.card.id)
+    const elementStr = corr ? corr.element : d.card.suit ? SUIT_ELEMENT[d.card.suit] : ''
+    const astroStr = corr ? ` · ${formatAstrology(corr.astrology)}` : ''
+    const yesNoStr = corr ? ` · ${corr.yesNo}` : ''
     const arcanaLabel =
       d.card.arcana === 'major' ? 'Major Arcana' : 'Minor Arcana'
     return [
       `--- Vị trí ${d.positionIndex + 1}: ${pos?.label ?? '?'} ---`,
       `Câu hỏi: "${pos?.hint ?? ''}"`,
       `Lá: ${d.card.name} (${d.reversed ? 'ngược' : 'xuôi'})${courtLabel}`,
-      `Thông số: Số ${num} · ${arcanaLabel}${d.card.suit ? ` · ${suitName}${element}` : ''}`,
+      `Thông số: Số ${num} · ${arcanaLabel}${d.card.suit ? ` · ${suitName} · ${elementStr}` : ''}${astroStr}${yesNoStr}`,
       `Từ khóa: ${d.card.keywords.join(', ')}`,
     ].join('\n')
   })
@@ -618,6 +653,13 @@ const server = http.createServer(async (req, res) => {
   res.on('close', onClientClose)
 
   try {
+    // Emit computed metadata first for readings — dominant card, cross-card
+    // summary, elemental dignities. Deterministic, no LLM call.
+    if (path === '/api/reading') {
+      const meta = computeReadingMeta(payload.drawn)
+      sse.event('meta', meta)
+    }
+
     let full = ''
     const onChunk = (delta) => {
       full += delta

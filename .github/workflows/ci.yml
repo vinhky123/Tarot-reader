@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+# Cancel in-progress runs for the same ref when new commits arrive.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint · Typecheck · Build · Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      # Dummy key so the api/ modules can load without a real Gemini key.
+      # CI never makes real Gemini calls — test:api validates structure only.
+      GEMINI_API_KEY: ci-dummy-key
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: API function tests
+        run: npm run test:api
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Verify no API key leaked into bundle
+        run: |
+          if grep -rqE "AIza[A-Za-z0-9_-]{30,}" dist/; then
+            echo "::error::API key pattern found in dist/ bundle!"
+            grep -rEo "AIza[A-Za-z0-9_-]{30,}" dist/ | head -5
+            exit 1
+          fi
+          echo "✅ No API key pattern in bundle"
+
+      - name: Verify Gemini SDK not in client bundle
+        run: |
+          if grep -rq "generativelanguage.googleapis.com" dist/assets/; then
+            echo "::error::@google/genai SDK leaked into client bundle!"
+            exit 1
+          fi
+          echo "✅ Gemini SDK not in client bundle"
+
+      - name: Upload build artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7

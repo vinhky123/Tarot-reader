@@ -1,23 +1,29 @@
 import type { DrawnCard, ReaderTurn, Suit } from '../types'
 import type { SpreadDefinition } from '../data/spreads'
+import {
+  computeDignities,
+  getCorrespondence,
+  type Astrology,
+  type ReadingMeta,
+} from '../data/correspondences'
 
 /**
  * Client side of the Gemini proxy.
  *
  * The API key never lives in the browser. All calls go through the server-side
- * proxy (see `server/proxy.mjs`) which holds GEMINI_API_KEY as a server-only
- * secret and enforces per-IP rate limiting. This module just shapes the request
- * and decodes the response.
+ * proxy (see `server/proxy.mjs` or `api/*.ts`) which holds GEMINI_API_KEY as a
+ * server-only secret and enforces per-IP rate limiting. This module just shapes
+ * the request and decodes the response.
  *
  * In dev, Vite proxies `/api` to http://localhost:8787 (see vite.config.ts). In
- * prod, nginx proxies `/api` to the `proxy` service (see nginx.conf).
+ * prod, nginx proxies `/api` to the `proxy` service or Vercel Edge functions.
  */
 
 const SUIT_ELEMENT: Record<Suit, string> = {
-  wands: 'Lửa (Fire)',
-  cups: 'Nước (Water)',
-  swords: 'Khí (Air)',
-  pentacles: 'Đất (Earth)',
+  wands: 'Fire',
+  cups: 'Water',
+  swords: 'Air',
+  pentacles: 'Earth',
 }
 
 function cardNumber(card: { id: number; arcana: 'major' | 'minor' }): number {
@@ -26,6 +32,20 @@ function cardNumber(card: { id: number; arcana: 'major' | 'minor' }): number {
 
 function isCourt(rank: number): boolean {
   return rank >= 11
+}
+
+/** Format a card's astrology correspondence into a compact prompt string. */
+function formatAstrology(astro: Astrology): string {
+  switch (astro.kind) {
+    case 'zodiac':
+      return `${astro.sign} (${astro.planet}, ${astro.dates})`
+    case 'decan':
+      return `${astro.sign} (${astro.planet}, ${astro.dates})`
+    case 'planet':
+      return astro.planet
+    case 'element':
+      return 'thuần nguyên tố'
+  }
 }
 
 export function buildUserPrompt(
@@ -41,13 +61,16 @@ export function buildUserPrompt(
     const suitName = d.card.suit
       ? d.card.suit.charAt(0).toUpperCase() + d.card.suit.slice(1)
       : ''
-    const element = d.card.suit ? ` · ${SUIT_ELEMENT[d.card.suit]}` : ''
+    const corr = getCorrespondence(d.card.id)
+    const elementStr = corr ? corr.element : d.card.suit ? SUIT_ELEMENT[d.card.suit] : ''
+    const astroStr = corr ? ` · ${formatAstrology(corr.astrology)}` : ''
+    const yesNoStr = corr ? ` · ${corr.yesNo}` : ''
     const arcanaLabel = d.card.arcana === 'major' ? 'Major Arcana' : 'Minor Arcana'
     return [
       `--- Vị trí ${d.positionIndex + 1}: ${pos?.label ?? '?'} ---`,
       `Câu hỏi: "${pos?.hint ?? ''}"`,
       `Lá: ${d.card.name} (${d.reversed ? 'ngược' : 'xuôi'})${courtLabel}`,
-      `Thông số: Số ${num} · ${arcanaLabel}${d.card.suit ? ` · ${suitName}${element}` : ''}`,
+      `Thông số: Số ${num} · ${arcanaLabel}${d.card.suit ? ` · ${suitName} · ${elementStr}` : ''}${astroStr}${yesNoStr}`,
       `Từ khóa: ${d.card.keywords.join(', ')}`,
     ].join('\n')
   })
@@ -77,9 +100,12 @@ function buildSpreadSummary(drawn: DrawnCard[]): string[] {
 
   const suitCounts: Partial<Record<Suit, number>> = {}
   let courtCount = 0
+  const elements: string[] = []
   for (const d of drawn) {
     if (d.card.suit) suitCounts[d.card.suit] = (suitCounts[d.card.suit] ?? 0) + 1
     if (d.card.arcana === 'minor' && isCourt(cardNumber(d.card))) courtCount++
+    const corr = getCorrespondence(d.card.id)
+    if (corr) elements.push(corr.element)
   }
 
   const lines: string[] = ['Tổng quan bộ bài:']
@@ -95,6 +121,12 @@ function buildSpreadSummary(drawn: DrawnCard[]): string[] {
   if (suitParts.length > 0) lines.push(`• ${suitParts.join(' + ')}`)
   lines.push(`• ${upright} xuôi · ${reversed} ngược`)
   if (courtCount > 0) lines.push(`• ${courtCount} Court (nhân vật / nguyên mẫu)`)
+
+  // Elemental dignities — computed from Golden Dawn rules.
+  const dignities = computeDignities(elements as never)
+  for (const dg of dignities) {
+    lines.push(`• Dignity: ${dg.pair[0]} + ${dg.pair[1]} — ${dg.gloss}`)
+  }
 
   return lines
 }
@@ -181,6 +213,7 @@ async function streamFromProxy(
   body: unknown,
   onChunk: (delta: string) => void,
   signal?: AbortSignal,
+  onMeta?: (meta: ReadingMeta) => void,
 ): Promise<string> {
   let lastErr: unknown = null
   let receivedAny = false
@@ -221,7 +254,14 @@ async function streamFromProxy(
       let full = ''
       let errMsg: string | null = null
       await readSseStream(res.body, (ev) => {
-        if (ev.type === 'delta') {
+        if (ev.type === 'meta' && onMeta) {
+          try {
+            const parsed = JSON.parse(ev.data) as ReadingMeta
+            onMeta(parsed)
+          } catch {
+            /* ignore malformed meta */
+          }
+        } else if (ev.type === 'delta') {
           try {
             const parsed = JSON.parse(ev.data) as { delta?: string }
             if (parsed.delta) {
@@ -275,7 +315,9 @@ export interface ProxyChatRequest {
 
 /**
  * Yêu cầu một bài đọc Tarot qua proxy (streaming). `onChunk` được gọi mỗi khi
- * một đoạn text mới về — dùng để render tiến triển. Truyền `signal` để huỷ.
+ * một đoạn text mới về — dùng để render tiến triển. `onMeta` được gọi một lần
+ * với metadata tính sẵn (lá chủ âm, tổng quan, dignity) trước khi text bắt đầu.
+ * Truyền `signal` để huỷ.
  */
 export async function requestTarotReading(
   spread: SpreadDefinition,
@@ -283,12 +325,14 @@ export async function requestTarotReading(
   userQuestion: string,
   onChunk: (delta: string) => void,
   signal?: AbortSignal,
+  onMeta?: (meta: ReadingMeta) => void,
 ): Promise<string> {
   return streamFromProxy(
     '/api/reading',
     { spread, drawn, question: userQuestion },
     onChunk,
     signal,
+    onMeta,
   )
 }
 

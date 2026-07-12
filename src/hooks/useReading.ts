@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import type { DrawnCard, ReaderTurn, ReadingStep } from '../types'
 import { TAROT_CARDS } from '../data/tarotCards'
 import { getSpreadById } from '../data/spreads'
+import type { ReadingMeta } from '../data/correspondences'
 
 function shuffleIndices(): number[] {
   const a = TAROT_CARDS.map((_, i) => i)
@@ -22,6 +23,7 @@ export function useReading() {
   const [drawn, setDrawn] = useState<DrawnCard[] | null>(null)
   const [cardFaceUp, setCardFaceUp] = useState<boolean[]>([])
   const [readingText, setReadingText] = useState<string | null>(null)
+  const [readingMeta, setReadingMeta] = useState<ReadingMeta | null>(null)
   const [readerThread, setReaderThread] = useState<ReaderTurn[]>([])
   const [chatSending, setChatSending] = useState(false)
   const [chatError, setChatError] = useState<string | null>(null)
@@ -57,6 +59,7 @@ export function useReading() {
     setDrawn(null)
     setCardFaceUp([])
     setReadingText(null)
+    setReadingMeta(null)
     setReaderThread([])
     setChatError(null)
     setError(null)
@@ -77,6 +80,7 @@ export function useReading() {
     setDrawn(next)
     setCardFaceUp(falses(next.length))
     setReadingText(null)
+    setReadingMeta(null)
     setReaderThread([])
     setChatError(null)
     setError(null)
@@ -130,6 +134,7 @@ export function useReading() {
     setStep('reading')
     setError(null)
     setReadingText(null)
+    setReadingMeta(null)
     setReaderThread([])
     setChatError(null)
     try {
@@ -151,6 +156,7 @@ export function useReading() {
           setReadingText(acc)
         },
         controller.signal,
+        (meta) => setReadingMeta(meta),
       )
       setReadingText(text)
       setReaderThread(getInitialReaderThread(spread, drawn, userQuestion, text))
@@ -214,6 +220,7 @@ export function useReading() {
     setDrawn(null)
     setCardFaceUp([])
     setReadingText(null)
+    setReadingMeta(null)
     setReaderThread([])
     setChatError(null)
     setChatSending(false)
@@ -229,6 +236,7 @@ export function useReading() {
     drawn,
     cardFaceUp,
     readingText,
+    readingMeta,
     readerThread,
     chatSending,
     chatError,

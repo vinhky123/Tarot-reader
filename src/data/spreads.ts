@@ -76,6 +76,53 @@ export const SPREADS: SpreadDefinition[] = [
       { label: 'Kết cục', hint: 'Hướng giải quyết cuối cùng nếu giữ quỹ đạo — không phải số phận, mà là quỹ đạo hiện tại.' },
     ],
   },
+  {
+    id: 'horseshoe',
+    title: 'Móng ngựa — Bảy lá',
+    shortTitle: '7 lá',
+    description:
+      'Dòng chảy rộng: quá khứ, hiện tại, tương lai, ảnh hưởng ẩn, lời khuyên, tác động bên ngoài, kết quả.',
+    cardCount: 7,
+    positions: [
+      { label: 'Quá khứ', hint: 'Nền tảng đã qua — điều đã dẫn tới tình huống hiện tại.' },
+      { label: 'Hiện tại', hint: 'Trung tâm trải nghiệm lúc này.' },
+      { label: 'Tương lai', hint: 'Hướng đang hình thành nếu tiếp tục quỹ đạo hiện tại.' },
+      { label: 'Ảnh hưởng ẩn', hint: 'Yếu tố tiềm thức hoặc vô hình đang tác động mà người xem chưa nhận ra.' },
+      { label: 'Lời khuyên', hint: 'Hướng đi được gợi ý — hành động hoặc thay đổi thái độ cụ thể.' },
+      { label: 'Tác động bên ngoài', hint: 'Người khác, môi trường, bối cảnh bên ngoài đang ảnh hưởng.' },
+      { label: 'Kết quả', hint: 'Điểm đến khả dĩ nếu làm theo lời khuyên — không cố định, phụ thuộc lựa chọn.' },
+    ],
+  },
+  {
+    id: 'relationship',
+    title: 'Mối quan hệ — Năm lá',
+    shortTitle: 'Quan hệ',
+    description:
+      'Đọc cho hai người: bạn, đối phương, sự kết nối, điểm mạnh, thử thách.',
+    cardCount: 5,
+    positions: [
+      { label: 'Bạn', hint: 'Vai trò, năng lượng, thái độ của người xem trong mối quan hệ này.' },
+      { label: 'Đối phương', hint: 'Vai trò, năng lượng, thái độ của người kia — cách họ đang xuất hiện.' },
+      { label: 'Sự kết nối', hint: 'Bản chất mối liên kết giữa hai người — điều kéo hai bên lại hoặc đẩy ra.' },
+      { label: 'Điểm mạnh', hint: 'Nền tảng vững chắc hoặc tài sản chung của mối quan hệ.' },
+      { label: 'Thử thách', hint: 'Điểm căng thẳng hoặc bài học cần đối mặt cùng nhau.' },
+    ],
+  },
+  {
+    id: 'career',
+    title: 'Đường nghề — Năm lá',
+    shortTitle: 'Nghề nghiệp',
+    description:
+      'Định hướng công việc: tình huống hiện tại, thử thách, cơ hội, hành động, kết quả.',
+    cardCount: 5,
+    positions: [
+      { label: 'Tình huống hiện tại', hint: 'Nơi đứng trong sự nghiệp hoặc công việc lúc này.' },
+      { label: 'Thử thách', hint: 'Trở ngại chính hoặc điểm mắc kẹt cần vượt qua.' },
+      { label: 'Cơ hội', hint: 'Lối mở hoặc tiềm năng đang hiện ra — có thể chưa nhìn thấy.' },
+      { label: 'Hành động', hint: 'Bước đi cụ thể được gợi ý — nên làm gì tiếp theo.' },
+      { label: 'Kết quả', hint: 'Hướng đi nếu thực hiện hành động — kết quả nghề nghiệp khả dĩ.' },
+    ],
+  },
 ]
 
 export function getSpreadById(id: string): SpreadDefinition | undefined {

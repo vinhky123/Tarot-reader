@@ -6,9 +6,10 @@
   "description": "Server-side proxy that holds the Gemini API key so it never reaches the browser bundle.",
   "main": "proxy.mjs",
   "scripts": {
-    "start": "node proxy.mjs"
+    "start": "node --import tsx/proxy proxy.mjs"
   },
   "dependencies": {
-    "@google/genai": "^1.48.0"
+    "@google/genai": "^1.48.0",
+    "tsx": "^4.23.0"
   }
 }

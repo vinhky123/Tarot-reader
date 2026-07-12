@@ -380,11 +380,133 @@ they drift, prefer the Vercel `api/_shared.ts` as canonical and backport to
 
 ---
 
-## Sprint 3 — Depth — ⏳ NOT STARTED
+## Sprint 3 — Depth: correspondences + structured metadata + new spreads — ✅ COMPLETE
 
-#9 correspondences data layer (the differentiator — Golden Dawn astrology,
-decans, Qabalah, elemental dignities), #6 structured JSON output via
-`responseSchema`, #11 new spreads (Horseshoe, Relationship, Career, Year-ahead).
+**Date:** 2026-07-11
+**Goal:** Add the esoteric depth layer (Golden Dawn correspondences for all 78
+cards), structured computed metadata rendered as a UI panel, and 3 new spreads.
+
+### #9 Core astrological correspondence layer — DONE
+
+**New: `src/data/correspondences.ts`** (~400 lines) — single source of truth for
+all 78 cards, keyed by id:
+
+| Layer | Coverage | Source |
+|-------|----------|--------|
+| **Element** | All 78 (suit-based for minors, per-card for majors) | Golden Dawn |
+| **Astrology — Major** | 22 Majors: zodiac sign (12) or ruling planet (10, incl. modern Uranus/Neptune/Pluto) | Liber 777 |
+| **Astrology — Minor Ace–10** | 36 decans: zodiac sign + ruling planet + date range | Golden Dawn decan wheel |
+| **Court cards** | 16: element + court sub-attribution (no decan) | tradition |
+| **Yes/No** | All 78 | traditional attributions |
+| **Timing** | All 78 (suit-based for minors, zodiac dates for majors) | Golden Dawn |
+
+Also includes **`computeDignities()`** — Golden Dawn elemental dignity rules
+(same element = strengthened, Fire↔Air/Water↔Earth = friendly, Fire↔Water/Air↔Earth
+= hostile) and **`computeReadingMeta()`** — deterministic dominant-card heuristic,
+cross-card summary, and dignity computation (no LLM call needed).
+
+Kept as a **separate lookup** (`CORRESPONDENCES[id]`) rather than mutating
+`TarotCard`, so the existing 78 card definitions in `tarotCards.ts` are untouched.
+
+### Prompt enrichment (#9 integration) — DONE
+
+All 3 prompt builders (`src/services/gemini.ts`, `api/_shared.ts`,
+`server/proxy.mjs`) now emit, per card:
+```
+Thông số: Số 4 · Major Arcana · Wands · Fire · Aries (Mars, 21/3–19/4) · Yes
+```
+And in the spread summary (when ≥2 cards), computed elemental dignities:
+```
+• Dignity: Fire + Water — căng thẳng — nguyên tố đối lập
+```
+
+### #6 Structured metadata (without killing streaming) — DONE
+
+Instead of switching to Gemini `responseSchema` (which would break progressive
+streaming), the metadata is **computed deterministically on the server** and
+streamed as a `meta` SSE event *before* the prose deltas:
+
+- **`event: meta`** → `{ dominantCard, crossCardSummary, dignities }`
+- Then `event: delta` chunks → the prose reading (unchanged)
+
+**New UI: `src/components/ReadingMeta.tsx`** — renders a panel above the prose:
+- Dominant card highlight (name + reason)
+- Composition stats (Major/Minor/Court, upright/reversed)
+- Element distribution chips (🔥💧🌬️🌍)
+- Suit distribution (when >1 suit)
+- Dignity chips color-coded: gold (strengthened), cyan (friendly), red (hostile)
+
+The panel appears instantly when the `meta` event arrives — *before* the prose
+starts streaming — giving the user something to read immediately.
+
+### #11 New spreads — DONE
+
+3 new spreads added to `src/data/spreads.ts`:
+
+| Spread | Cards | Positions |
+|--------|-------|-----------|
+| **Horseshoe** | 7 | Past, Present, Future, Hidden Influences, Advice, External, Outcome |
+| **Relationship** | 5 | You, Partner, Connection, Strengths, Challenges |
+| **Career Path** | 5 | Current, Challenge, Opportunity, Action, Outcome |
+
+`SpreadLayout.tsx` updated: 5-card spreads (relationship, career) reuse the
+existing cross layout; horseshoe uses a horizontal 7-card row. All 3 new spread
+ids added to `SPREAD_TEMPERATURE` in all 3 prompt-builder files.
+
+### Verification (all green)
+
+| Check | Result |
+|-------|--------|
+| `npm run typecheck` | ✅ clean |
+| `npm run lint` | ✅ clean |
+| `npm run build` | ✅ 1033 modules |
+| `npm run test:api` | ✅ **18/18 PASS** (11 existing + 7 new in Test 7) |
+| Correspondence spot-checks (11 cards vs Liber 777) | ✅ all correct |
+| 78 correspondences populated | ✅ |
+
+**Spot-check results** (all match Golden Dawn attributions):
+- Emperor = Aries/Fire ✅ · Hierophant = Taurus/Earth ✅ · Lovers = Gemini/Air ✅
+- Death = Scorpio/Water ✅ · Tower = Mars/Fire ✅ · Star = Aquarius/Air ✅
+- 2 of Wands = Mars in Aries (1st decan) ✅ · 2 of Cups = Venus in Cancer ✅
+
+**Test 7** verifies: meta event emitted before deltas, dominant card = sole
+Major (Emperor), element counts (Fire=1, Water=1), hostile dignity detected
+(Fire+Water).
+
+### Files changed
+
+```
+New:
+  src/data/correspondences.ts          (78-card Golden Dawn data + dignities + computeReadingMeta)
+  src/components/ReadingMeta.tsx       (metadata UI panel)
+
+Modified:
+  src/data/spreads.ts                  (+3 spreads: horseshoe, relationship, career)
+  src/components/SpreadLayout.tsx      (+horseshoe 7-card layout; 5-card spreads share layout)
+  src/services/gemini.ts               (correspondence enrichment + onMeta callback + formatAstrology)
+  src/hooks/useReading.ts              (readingMeta state + onMeta wiring + clear on reset)
+  src/App.tsx                          (render ReadingMetaPanel)
+  api/_shared.ts                       (enrichment + computeReadingMeta re-export + new temps)
+  api/reading.ts                       (emit meta event before deltas)
+  server/proxy.mjs                     (enrichment + computeReadingMeta + meta event + new temps)
+  server/package.json                  (+tsx dep for loading correspondences.ts)
+  server/Dockerfile                    (tsx loader + copy correspondences.ts)
+  package.json                         (dev:proxy uses tsx loader)
+  scripts/test-api.ts                  (+Test 7: meta event structure)
+```
+
+### Notes
+
+- The `gemini-*.js` client chunk grew from 4 kB → 11.7 kB because the
+  correspondence data is now bundled client-side (needed by the client-side
+  prompt builder for thread seeding). Acceptable for the depth gained.
+- The metadata panel is deterministic — it computes instantly from the drawn
+  cards, no API call. This means users see structured insight *before* the LLM
+  prose even starts streaming.
+- Vercel Edge functions import `correspondences.ts` from `../src/data/` — this
+  works because Vercel's Edge bundler resolves it at build time.
+
+---
 
 ## Sprint 4 — Polish & scale — ⏳ NOT STARTED
 

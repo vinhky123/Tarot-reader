@@ -146,6 +146,61 @@ async function main() {
     assert(res.status === 400, `empty turns returns 400 (got ${res.status})`)
   }
 
+  console.log('\n=== TEST 7: meta event structure (3-card spread with mixed cards) ===')
+  {
+    // 3-card spread: The Emperor (id 4, Major, Aries/Fire) + 2 of Cups (id 37, Water) + 7 of Swords (id 56, Air)
+    const payload = {
+      spread: {
+        id: 'three',
+        title: 'Ba lá',
+        description: 'P/P/F',
+        cardCount: 3,
+        positions: [
+          { label: 'Quá khứ', hint: 'a' },
+          { label: 'Hiện tại', hint: 'b' },
+          { label: 'Tương lai', hint: 'c' },
+        ],
+      },
+      drawn: [
+        { card: { id: 4, name: 'The Emperor', arcana: 'major', upright: 'x', reversed: 'y', keywords: [] }, reversed: false, positionIndex: 0 },
+        { card: { id: 37, name: 'Two of Cups', arcana: 'minor', suit: 'cups', upright: 'x', reversed: 'y', keywords: [] }, reversed: true, positionIndex: 1 },
+        { card: { id: 56, name: 'Seven of Swords', arcana: 'minor', suit: 'swords', upright: 'x', reversed: 'y', keywords: [] }, reversed: false, positionIndex: 2 },
+      ],
+      question: 'test',
+    }
+    const req = new Request('http://localhost/api/reading', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const res = await handler_reading(req)
+    const reader = res.body!.getReader()
+    const decoder = new TextDecoder()
+    let text = ''
+    // Read just enough to get the meta event (before Gemini error on dummy key).
+    while (!text.includes('event: meta') && !text.includes('event: error')) {
+      const { done, value } = await reader.read()
+      if (done) break
+      text += decoder.decode(value, { stream: true })
+      if (text.length > 2000) break
+    }
+    const metaMatch = text.match(/event: meta\ndata: ({.*})/)
+    assert(!!metaMatch, 'meta event emitted before deltas')
+    if (metaMatch) {
+      const meta = JSON.parse(metaMatch[1])
+      assert(meta.dominantCard?.id === 4, `dominant card is The Emperor (sole Major, id 4) (got id ${meta.dominantCard?.id})`)
+      assert(meta.crossCardSummary.major === 1, `crossCardSummary.major === 1 (got ${meta.crossCardSummary.major})`)
+      assert(meta.crossCardSummary.minor === 2, `crossCardSummary.minor === 2 (got ${meta.crossCardSummary.minor})`)
+      assert(meta.crossCardSummary.reversed === 1, `crossCardSummary.reversed === 1 (got ${meta.crossCardSummary.reversed})`)
+      assert(meta.crossCardSummary.elements.Fire === 1, `elements.Fire === 1 (got ${meta.crossCardSummary.elements.Fire})`)
+      assert(meta.crossCardSummary.elements.Water === 1, `elements.Water === 1 (got ${meta.crossCardSummary.elements.Water})`)
+      // Fire + Water should be hostile; Fire + Air friendly; Water + Air hostile
+      const hostile = meta.dignities.filter((d: { relation: string }) => d.relation === 'hostile')
+      assert(hostile.length >= 1, `at least one hostile dignity (Fire+Water) (got ${hostile.length})`)
+      console.log(`  → dominant: ${meta.dominantCard.name}, dignities: ${meta.dignities.length}`)
+    }
+  }
+
   console.log('\n=== DONE ===')
 }
 

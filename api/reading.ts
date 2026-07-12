@@ -1,6 +1,7 @@
 import {
   CONFIG,
   clientIp,
+  computeReadingMeta,
   friendlyError,
   isConfigured,
   rateLimitOk,
@@ -59,6 +60,11 @@ export default async function handler(req: Request): Promise<Response> {
 
   ;(async () => {
     try {
+      // Emit computed metadata first — dominant card, cross-card summary,
+      // elemental dignities. Deterministic, no LLM call.
+      const meta = computeReadingMeta(payload.drawn)
+      sseEvent(controller, 'meta', meta)
+
       let full = ''
       await streamReading(
         payload,

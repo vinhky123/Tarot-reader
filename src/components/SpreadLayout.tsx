@@ -83,7 +83,7 @@ export function SpreadLayout({
     )
   }
 
-  if (spread.id === 'five') {
+  if (spread.id === 'five' || spread.id === 'relationship' || spread.id === 'career') {
     return (
       <div className="mx-auto flex max-w-3xl flex-col items-center gap-7 py-8 sm:gap-8">
         <Slot
@@ -128,6 +128,24 @@ export function SpreadLayout({
           interactive={interactive}
           onToggleCard={onToggleCard}
         />
+      </div>
+    )
+  }
+
+  if (spread.id === 'horseshoe') {
+    return (
+      <div className="mx-auto flex max-w-5xl flex-wrap justify-center gap-5 py-8 sm:gap-7">
+        {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+          <Slot
+            key={i}
+            label={spread.positions[i].label}
+            index={i}
+            drawn={d(i)}
+            faceUp={up(i)}
+            interactive={interactive}
+            onToggleCard={onToggleCard}
+          />
+        ))}
       </div>
     )
   }

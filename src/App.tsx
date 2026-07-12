@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Footer } from './components/Layout/Footer'
 import { MysticCover } from './components/Layout/MysticCover'
 import { MysticBackground } from './components/Layout/MysticBackground'
@@ -8,12 +8,15 @@ import { LoadingOracle } from './components/LoadingOracle'
 import { MysticSectionDivider } from './components/MysticSectionDivider'
 import { OracleGlyph } from './components/OracleGlyph'
 import { ReaderChat } from './components/ReaderChat'
+import { ReadingMetaPanel } from './components/ReadingMeta'
 import { ReadingFlowStepper } from './components/ReadingFlowStepper'
 import { ReadingResult } from './components/ReadingResult'
 import { SpreadLayout } from './components/SpreadLayout'
 import { SpreadSelector } from './components/SpreadSelector'
 import { TarotDeck } from './components/TarotDeck'
 import { useReading } from './hooks/useReading'
+import { useReadingHistory, downloadText, entryToMarkdown } from './hooks/useReadingHistory'
+import { ReadingHistory } from './components/ReadingHistory'
 
 const btnPrimary =
   'rounded-xl border-2 border-[#d4af37]/70 bg-[#1a0a2e] px-8 py-4 font-display text-base font-semibold tracking-wide text-[#f5f0e6] shadow-[0_0_28px_rgba(212,175,55,0.12)] transition hover:border-[#d4af37] hover:bg-[#d4af37]/15 hover:text-[#fff8e8] disabled:cursor-not-allowed disabled:opacity-40'
@@ -25,8 +28,52 @@ const coverEase = [0.22, 1, 0.36, 1] as const
 
 export default function App() {
   const [coverOpen, setCoverOpen] = useState(true)
+  const [showHistory, setShowHistory] = useState(false)
   const dismissCover = useCallback(() => setCoverOpen(false), [])
   const r = useReading()
+  const history = useReadingHistory()
+  // Track which reading we've already saved to avoid duplicate history entries.
+  const savedRef = useRef<string | null>(null)
+
+  // Auto-save a reading to history when it completes.
+  useEffect(() => {
+    if (r.step !== 'done' || !r.readingText?.trim() || !r.spread || !r.drawn) return
+    // Dedupe: each completed reading is saved once. We reset savedRef on new draw.
+    const signature = `${r.spread.id}-${r.drawn.map((d) => d.card.id).join(',')}`
+    if (savedRef.current === signature) return
+    savedRef.current = signature
+    history.addEntry({
+      spreadId: r.spread.id,
+      spreadTitle: r.spread.title,
+      question: r.userQuestion,
+      cards: r.drawn.map((d) => ({ id: d.card.id, name: d.card.name, reversed: d.reversed })),
+      readingText: r.readingText,
+    })
+  }, [r.step, r.readingText, r.spread, r.drawn, r.userQuestion, history])
+
+  // Reset the dedupe signature when a new reading starts.
+  useEffect(() => {
+    if (r.step === 'spread' || r.step === 'shuffle') {
+      savedRef.current = null
+    }
+  }, [r.step])
+
+  // Export the current reading as Markdown.
+  const handleExport = useCallback(() => {
+    if (!r.readingText || !r.spread || !r.drawn) return
+    const md = entryToMarkdown({
+      id: 'current',
+      createdAt: Date.now(),
+      spreadId: r.spread.id,
+      spreadTitle: r.spread.title,
+      question: r.userQuestion,
+      cards: r.drawn.map((d) => ({ id: d.card.id, name: d.card.name, reversed: d.reversed })),
+      readingText: r.readingText,
+    })
+    const date = new Date().toISOString().slice(0, 10)
+    downloadText(`tarot-reading-${date}.md`, md)
+  }, [r.readingText, r.spread, r.drawn, r.userQuestion])
+
   const busy =
     r.step === 'shuffle' || r.step === 'reading' || r.step === 'placed'
   const showBoard =
@@ -176,11 +223,27 @@ export default function App() {
                   <button type="button" className={btnGhost} onClick={r.resetAll}>
                     Trải bài mới
                   </button>
+                  {r.step === 'done' && r.readingText && (
+                    <button type="button" className={btnGhost} onClick={handleExport}>
+                      Xuất Markdown
+                    </button>
+                  )}
+                  {history.entries.length > 0 && (
+                    <button
+                      type="button"
+                      className={btnGhost}
+                      onClick={() => setShowHistory(true)}
+                    >
+                      Lịch sử ({history.entries.length})
+                    </button>
+                  )}
                 </div>
 
                 {(r.step === 'reading' || r.error || r.readingText) && (
                   <MysticSectionDivider />
                 )}
+
+                {r.readingMeta && <ReadingMetaPanel meta={r.readingMeta} />}
 
                 {r.step === 'reading' && (
                   <div className="flex flex-col items-center gap-6 py-6">
@@ -222,6 +285,21 @@ export default function App() {
           <MysticCover key="mystic-cover" onEnter={dismissCover} />
         )}
       </AnimatePresence>
+
+      {showHistory && (
+        <ReadingHistory
+          entries={history.entries}
+          onClose={() => setShowHistory(false)}
+          onRemove={history.removeEntry}
+          onClear={history.clearAll}
+          onExport={(e) =>
+            downloadText(
+              `tarot-${new Date(e.createdAt).toISOString().slice(0, 10)}.md`,
+              entryToMarkdown(e),
+            )
+          }
+        />
+      )}
     </>
   )
 }
